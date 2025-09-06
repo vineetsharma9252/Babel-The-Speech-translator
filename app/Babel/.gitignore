@@ -1,6 +1,6 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-app/Babel/# dependencies
+# dependencies
 app/Babel/node_modules/
 
 # Expo
@@ -35,5 +35,3 @@ app/Babel/.env*.local
 
 # typescript
 app/Babel/*.tsbuildinfo
-
-app/Babel/app-example
