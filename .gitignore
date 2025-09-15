@@ -35,3 +35,11 @@ app/Babel/.env*.local
 
 # typescript
 app/Babel/*.tsbuildinfo
+
+# EAS build
+app/Babel/eas.json
+
+# others
+app/Babel/.expo
+app/Babel/package.json
+app/Babel/package-lock.json
