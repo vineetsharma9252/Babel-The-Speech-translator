@@ -1,1 +1,0 @@
-# Project Babel -> Real time voice translator
