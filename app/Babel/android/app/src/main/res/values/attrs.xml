@@ -1,0 +1,5 @@
+<resources>
+    <attr name="actionBarSize" format="dimension" >
+        <item name="android:actionBarSize">?android:attr/actionBarSize</item>
+    </attr>
+</resources>
