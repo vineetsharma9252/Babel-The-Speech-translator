@@ -1,0 +1,7 @@
+{
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.project.sourcePaths": [
+        "app/Babel/android/.gradle"
+    ],
+    "java.configuration.updateBuildConfiguration": "interactive"
+}

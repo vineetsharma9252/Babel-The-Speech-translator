@@ -60,6 +60,9 @@ export default function FirstVisitRecorder() {
     <>
     <View style = {styles.upperContainer}>
         <Text style = {styles.recorderHeading}>We want your voice for 10 seconds</Text>
+        <Text style = {styles.recordingText}>
+            {results.length > 0 ? results[0] : '""'}
+        </Text>
         <View>
             <Text>Speak this up</Text>
             <View>
@@ -87,6 +90,13 @@ const styles = StyleSheet.create({
         marginTop: "10%", 
         fontFamily: "Boldonse-Regular", 
         color: "white"
+    }, 
+    recordingText: {
+        fontFamily: "Boldonse-Regular",
+        fontSize: 24, 
+        color: Colors.buttonText, 
+        justifyContent: "center", 
+        alignItems: "center"
     }, 
     speakUpRootContainer: {
         backgroundColor: Colors.backgroundWhite, 
