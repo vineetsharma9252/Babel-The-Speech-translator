@@ -90,6 +90,9 @@ const styles = StyleSheet.create({
     }, 
     speakUpRootContainer: {
         backgroundColor: Colors.backgroundWhite, 
-        alig
+        alignContent: "center", 
+        justifyContent: "flex-end", 
+        margin: "5%", 
+        padding: "2%", 
     }
 });
