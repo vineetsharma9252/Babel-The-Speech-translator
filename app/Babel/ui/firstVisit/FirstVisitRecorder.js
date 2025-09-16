@@ -61,7 +61,7 @@ export default function FirstVisitRecorder() {
     <View style = {styles.upperContainer}>
         <Text style = {styles.recorderHeading}>We want your voice for 10 seconds</Text>
         <Text style = {styles.recordingText}>
-            {results.length > 0 ? results[0] : '""'}
+            {results.length > 0 ? '""' + results[0] + '""' : '""'}
         </Text>
         <View>
             <Text>Speak this up</Text>
