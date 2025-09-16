@@ -1,7 +1,7 @@
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { useContext, useEffect, useState } from "react";
 import { Permissions } from "expo";
-import Voice from "@react-native-voice/voice";
+import Voice from "@react-native-community/voice";
 
 import Colors from "../../colors/colors";
 import { ButtonsContext } from "../../store/ButtonsContext";
@@ -60,6 +60,12 @@ export default function FirstVisitRecorder() {
     <>
     <View style = {styles.upperContainer}>
         <Text style = {styles.recorderHeading}>We want your voice for 10 seconds</Text>
+        <View>
+            <Text>Speak this up</Text>
+            <View>
+                <Text>Inspired by the story of Babel, this project aims to unite voices across the world. My voice sample will help build a future of clearer communication for everyone.</Text>
+            </View>
+        </View>
     </View>
     </>
     );
@@ -81,5 +87,9 @@ const styles = StyleSheet.create({
         marginTop: "10%", 
         fontFamily: "Boldonse-Regular", 
         color: "white"
+    }, 
+    speakUpRootContainer: {
+        backgroundColor: Colors.backgroundWhite, 
+        alig
     }
 });

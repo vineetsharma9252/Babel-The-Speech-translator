@@ -41,5 +41,5 @@ app/Babel/eas.json
 
 # others
 app/Babel/.expo
-app/Babel/package.json
-app/Babel/package-lock.json
+# app/Babel/package.json
+# app/Babel/package-lock.json
