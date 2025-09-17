@@ -28,14 +28,14 @@ on:
         default: false
       expo_token:
         type: string
-        description: Expo token to use
+        description: Expo token for authentication
         required: true
 jobs:
   build:
     runs-on: ${{ github.event.inputs.os }}
     strategy:
       matrix:
-        node: [18.x]
+        node: [22.16.0]
     steps:
     - name: 🏗 Setup repo
       uses: actions/checkout@v2
@@ -44,16 +44,19 @@ jobs:
       uses: actions/setup-node@v2
       with:
         node-version: ${{ matrix.node }}
-        # cache: npm
-        # cache-dependency-path: ./app/project_babel/package-lock.json
 
     - name: 🏗 Setup Expo and EAS
       run: |
         npm install -g expo-cli eas-cli 
-        eas login --non-interactive --token ${{ github.event.inputs.expo_token }}
+        eas login
 
-    - name: Changing Directory
-      run: cd app/project_babel        
+    # - name: Changing Directory
+    #   run: cd app/project_babel        
+    - name: 🔑 Authenticate with Expo
+      env:
+        EXPO_TOKEN: ${{ github.event.inputs.expo_token }}
+      run: 
+        eas whoami
 
     - name: 📦 Install dependencies
       working-directory: ./app/project_babel
