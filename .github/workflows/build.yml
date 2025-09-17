@@ -55,9 +55,11 @@ jobs:
       run: cd app/project_babel        
 
     - name: 📦 Install dependencies
-      run: yarn install
+      working-directory: ./app/project_babel
+      run: npm install
 
     - name: 👷 Build app
+      working-directory: ./app/project_babel
       run: |
         eas build --local \
           --non-interactive \
