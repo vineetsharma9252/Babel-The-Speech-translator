@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "project_babel",
+    "slug": "project_babel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "permissions": {
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone to send voice messages.",
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to access speech recognition."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.nitincando1234.project_babel"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e84cb5ee-cd83-4aa3-aa17-09e0bdd28b12"
+      }
+    }
+  }
+}

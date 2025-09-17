@@ -3,5 +3,5 @@
     "java.project.sourcePaths": [
         "app/Babel/android/.gradle"
     ],
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "disabled"
 }
