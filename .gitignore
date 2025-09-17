@@ -1,45 +1,45 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
-app/Babel/node_modules/
+app/project_babel/node_modules/
 
 # Expo
-app/Babel/.expo/
-app/Babel/dist/
-app/Babel/web-build/
-app/Babel/expo-env.d.ts
+app/project_babel/.expo/
+app/project_babel/dist/
+app/project_babel/web-build/
+app/project_babel/expo-env.d.ts
 
 # Native
-app/Babel/.kotlin/
-app/Babel/*.orig.*
-app/Babel/*.jks
-app/Babel/*.p8
-app/Babel/*.p12
-app/Babel/*.key
-app/Babel/*.mobileprovision
+app/project_babel/.kotlin/
+app/project_babel/*.orig.*
+app/project_babel/*.jks
+app/project_babel/*.p8
+app/project_babel/*.p12
+app/project_babel/*.key
+app/project_babel/*.mobileprovision
 
 # Metro
-app/Babel/.metro-health-check*
+app/project_babel/.metro-health-check*
 
 # debug
-app/Babel/npm-debug.*
-app/Babel/yarn-debug.*
-app/Babel/yarn-error.*
+app/project_babel/npm-debug.*
+app/project_babel/yarn-debug.*
+app/project_babel/yarn-error.*
 
 # macOS
-app/Babel/.DS_Store
-app/Babel/*.pem
+app/project_babel/.DS_Store
+app/project_babel/*.pem
 
 # local env files
-app/Babel/.env*.local
+app/project_babel/.env*.local
 
 # typescript
-app/Babel/*.tsbuildinfo
+app/project_babel/*.tsbuildinfo
 
 # EAS build
-app/Babel/eas.json
+app/project_babel/eas.json
 
 # others
-app/Babel/.expo
-# app/Babel/package.json
-# app/Babel/package-lock.json
+app/project_babel/.expo
+# app/project_babel/package.json
+# app/project_babel/package-lock.json
