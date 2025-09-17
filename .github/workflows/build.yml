@@ -26,6 +26,10 @@ on:
         description: Whether to perform the submit step
         required: true
         default: false
+      expo_token:
+        type: string
+        description: Expo token to use
+        required: true
 jobs:
   build:
     runs-on: ${{ github.event.inputs.os }}
@@ -45,7 +49,7 @@ jobs:
     - name: 🏗 Setup Expo and EAS
       uses: expo/expo-github-action@v7
       with:
-        token: ${{ secrets.EXPO_TOKEN }}
+        token: ${{ github.event.inputs.expo_token }}
         expo-version: latest
         eas-version: latest
 
