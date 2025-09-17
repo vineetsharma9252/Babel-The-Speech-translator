@@ -48,7 +48,6 @@ jobs:
     - name: 🏗 Setup Expo and EAS
       run: |
         npm install -g expo-cli eas-cli 
-        eas login
 
     # - name: Changing Directory
     #   run: cd app/project_babel        
