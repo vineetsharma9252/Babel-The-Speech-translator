@@ -47,11 +47,9 @@ jobs:
         cache: yarn
 
     - name: 🏗 Setup Expo and EAS
-      uses: expo/expo-github-action@v7
-      with:
-        token: ${{ github.event.inputs.expo_token }}
-        expo-version: latest
-        eas-version: latest
+      run: |
+        npm install -g expo-cli eas-cli 
+        eas login --non-interactive --token ${{ github.event.inputs.expo_token }}
 
     - name: Changing Directory
       run: cd app/project_babel        
