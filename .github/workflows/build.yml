@@ -62,6 +62,8 @@ jobs:
       run: npm install
 
     - name: 👷 Build app
+      env:
+        EXPO_TOKEN: ${{ github.event.inputs.expo_token }}    
       working-directory: ./app/project_babel
       run: |
         eas build --local \
