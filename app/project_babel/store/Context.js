@@ -1,4 +1,4 @@
-import { useEffect, createContext, useState } from "react";
+import { useEffect, createContext, useState, use } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,6 +10,11 @@ export function ContextProvider({ children }) {
     "Boldonse-Regular": require("../assets/fonts/Boldonse-Regular.ttf"),
     });
     const [isFirstVisit, setIsFirstVisited] = useState(null);
+    const [isReceiver, setIsReceiver] = useState(true);
+    const [isSender, setIsSender] = useState(true);
+    const [isUserWantConnection, setIsUserWantConnection] = useState(false);
+    const [isUserConnected, setIsUserConnected] = useState(false);
+
     // TODO
     // note => any-where in the code set the isFirstVisit context only when the user 
     // has succefully recorded their voice
@@ -17,7 +22,7 @@ export function ContextProvider({ children }) {
     useEffect(() => {
     async function checkFirstVisit() {
         try {
-            AsyncStorage.clear();
+            // AsyncStorage.clear();
             const userVisited = await AsyncStorage.getItem("userVisited");
             if (userVisited === null) {
                 await AsyncStorage.setItem("userVisited", "true");
@@ -48,7 +53,10 @@ export function ContextProvider({ children }) {
     if (!isLoaded || isFirstVisit === null) return null;
 
     return (
-        <Context.Provider value = {{ isFirstVisit }}>
+        <Context.Provider value = {
+            { isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
+                 isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected }
+            }>
             {children}
         </Context.Provider>
     );

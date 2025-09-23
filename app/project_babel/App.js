@@ -14,7 +14,7 @@ export default function App() {
         <ButtonsContextProvider>
         <MainScreen />
         </ButtonsContextProvider>
-        <StatusBar style="inverted" />
+        <StatusBar style="auto" />
       </View>
     </ContextProvider>
   );
@@ -29,3 +29,16 @@ const styles = StyleSheet.create({
     padding: "8%"
   },
 });
+
+
+// for android add the following to ./android/app/build.gradle: 
+// 1. run -> npx expo prebuild
+
+// 2. 
+// configurations.all {
+//     exclude group: "com.android.support"
+//     exclude module: "appcompat-v7"
+//     exclude module: "support-v4"
+// }
+// 3. 
+// run -> npx expo run:android

@@ -1,32 +1,44 @@
 import { useContext, useEffect } from "react";
-import Permissions from "expo";
 import { Alert } from "react-native";
+import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 
 import FirstVisitRecorder from "./FirstVisitRecorder";
 import FirstVisitButtons from "./FirstVisitButtons";
 import { ButtonsContext } from "../../store/ButtonsContext";
 
 export default function FirstVisitRecorderScreen() {
-    const { isFirstRecordingOn, setIsFirstRecordingOn } = useContext(ButtonsContext);
+    const { isFirstRecordingOn, finalizeRecording, setIsFirstRecordingOn } = useContext(ButtonsContext);
+
     function firstVisitRecordButtonFunction() {
         isFirstRecordingOn? setIsFirstRecordingOn(false) : setIsFirstRecordingOn(true);
     }
 
-    useEffect(() => {
-        async function componentDidMount() {
-        const { status, expires, permissions } = await Permissions.askAsync(
-            Permissions.AUDIO_RECORDING
-        );
-        console.log(status, expires, permissions);
-        if (status !== "granted") {
-            Alert.alert("Some Permissions is not Allowed !");
-        }}
-        componentDidMount();
-    }, []);
+  useEffect(() => {
+    ExpoSpeechRecognitionModule.getPermissionsAsync().then((permission) => {
+      console.log("Status:", permission.status);
+      console.log("Granted:", permission.granted);
+      console.log("Restricted:", permission.restricted); 
+      console.log("Can ask again:", permission.canAskAgain);
+      console.log("Expires:", permission.expires);    
+    if(!permission.granted) {
+      ExpoSpeechRecognitionModule.requestPermissionsAsync().then((result) => {
+        if(!result.granted) {
+          Alert.alert("Permissions not granted !");
+          return;
+        }
+        console.log("Status:", result.status);
+      });
+  }});
+  }, []);
 
-    return (<>
-            <FirstVisitRecorder />
-            <FirstVisitButtons buttonFunction={firstVisitRecordButtonFunction}/>
-            </>
-    );
+  useEffect(() => {
+    if(finalizeRecording === true)
+      setIsFirstRecordingOn(false);
+  }, [finalizeRecording]);
+
+  return (<>
+          <FirstVisitRecorder />
+          <FirstVisitButtons buttonFunction={firstVisitRecordButtonFunction}/>
+          </>
+  );
 }

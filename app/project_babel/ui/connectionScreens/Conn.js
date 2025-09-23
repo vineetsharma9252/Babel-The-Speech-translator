@@ -1,11 +1,16 @@
 import { StyleSheet, Text, View } from "react-native";
 import Colors from "../../colors/colors";
+import { useContext } from "react";
+
+import { Context } from "../../store/Context";
 
 export default function Conn() {
+    const { isSender, setIsSender, isReceiver, setIsReceiver } = useContext(Context);
+
     return (
     <>
     <View style = {styles.upperContainer}>
-        <Text>Hi</Text>
+        
     </View>
     </>
     );
