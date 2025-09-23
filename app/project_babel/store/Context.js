@@ -10,8 +10,8 @@ export function ContextProvider({ children }) {
     "Boldonse-Regular": require("../assets/fonts/Boldonse-Regular.ttf"),
     });
     const [isFirstVisit, setIsFirstVisited] = useState(null);
-    const [isReceiver, setIsReceiver] = useState(true);
-    const [isSender, setIsSender] = useState(true);
+    const [isReceiver, setIsReceiver] = useState(false);
+    const [isSender, setIsSender] = useState(false);
     const [isUserWantConnection, setIsUserWantConnection] = useState(false);
     const [isUserConnected, setIsUserConnected] = useState(false);
 
