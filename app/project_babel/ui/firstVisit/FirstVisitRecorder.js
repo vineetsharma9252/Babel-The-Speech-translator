@@ -9,6 +9,7 @@ import Colors from "../../colors/colors";
 import DividerWithText from "../DividerWithText";
 import Button from "../Button";
 import { Context } from "../../store/Context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function FirstVisitRecorder() {
     const { isFirstRecordingOn } = useContext(ButtonsContext);
@@ -114,7 +115,7 @@ export default function FirstVisitRecorder() {
         } catch(e) {
             console.log("Stop Error", e);
         } finally {
-            ExpoSpeechRecognitionModule.abort();
+            // ExpoSpeechRecognitionModule.abort();
         }
     }
 
@@ -131,6 +132,10 @@ export default function FirstVisitRecorder() {
         async function finalizer() {
             if(finalizeRecording === true) {
                 stopSpeechToText();
+                if(finalizeRecording === true) {
+                    await AsyncStorage.setItem("userVisited", "true");
+                }
+
                 await delay(2000);
                 if(isPickedFile.current === true)
                     return;
@@ -210,9 +215,14 @@ export default function FirstVisitRecorder() {
                 if(!destinationFile.exists) {
                     pickedFile.copy(destinationFile);
                     Alert.alert("File Successfully Copied", "You may proceed further.", [{ text: "OK" }]);
-                    await delay(3000);
                     isPickedFile.current = true;
                     setFinalizeRecording(true);
+                    
+                    if(finalizeRecording === true) {
+                        await AsyncStorage.setItem("userVisited", "true");
+                    }
+                    
+                    await delay(3000);
                     setIsFirstVisited(false);
                 }
                 else

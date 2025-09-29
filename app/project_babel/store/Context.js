@@ -15,6 +15,8 @@ export function ContextProvider({ children }) {
     const [isUserWantConnection, setIsUserWantConnection] = useState(false);
     const [isUserConnected, setIsUserConnected] = useState(false);
 
+    const [scanned, setScanned] = useState(false);
+
     // TODO
     // note => any-where in the code set the isFirstVisit context only when the user 
     // has succefully recorded their voice
@@ -24,15 +26,11 @@ export function ContextProvider({ children }) {
         try {
             // AsyncStorage.clear();
             const userVisited = await AsyncStorage.getItem("userVisited");
-            if (userVisited === null) {
-                await AsyncStorage.setItem("userVisited", "true");
-                setIsFirstVisited(true);
-            } else {
-                // TODO
-                // this must be set only when the user voice was successfully 
-                // added in persistent storage
+            console.log(userVisited)
+            if(userVisited === "true")
                 setIsFirstVisited(false);
-            }
+            else if(userVisited === null || userVisited === "false")
+                setIsFirstVisited(true);
         } catch (error) {
             console.log("Error Encountered", error);
         }
@@ -54,8 +52,9 @@ export function ContextProvider({ children }) {
 
     return (
         <Context.Provider value = {
-            { isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
-                 isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected }
+            {    isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
+                 isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected, 
+            }
             }>
             {children}
         </Context.Provider>

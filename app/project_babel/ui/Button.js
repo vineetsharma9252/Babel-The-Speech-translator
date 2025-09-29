@@ -1,14 +1,18 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Colors from "../colors/colors";
 
-export default function Button({ children, onPressHandler, Width, FontSize }) {
+export default function Button({ children, onPressHandler, MarginTop, Width, Color, FontSize }) {
 
     function buttonPressHandler() {
         onPressHandler();
     }
 
     return (
-        <TouchableOpacity style={[styles.buttonContainer, { width: Width? Width : "30%" }]}
+        <TouchableOpacity style={[
+            styles.buttonContainer, { width: Width? Width : "30%" }, 
+            { marginTop: MarginTop? MarginTop : "0%" }, 
+            { backgroundColor: Color? Color : Colors.cardPrimary }
+        ]}
          onPress={ buttonPressHandler }>
         <View >
             <Text style={[styles.buttonText, { fontSize: FontSize? FontSize : 16 }]}>{children}</Text>

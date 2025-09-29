@@ -35,28 +35,38 @@
     },
     "plugins": [
       [
-        "expo-speech-recognition", {
+        "expo-speech-recognition",
+        {
           "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone.",
           "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
-      ], 
-      ["expo-splash-screen", {
-        "backgroundColor": "#293241", 
-        "image": "./assets/splash-icon.png", 
-        "imageWidth": 200
-      }], 
+      ],
       [
-        "expo-document-picker", {
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#293241",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
           "iCloudContainerEnvironment": "Production"
         }
-      ], 
+      ],
       [
-        "react-native-ble-manager", {
-          "bluetoothAlwaysPermission": "Allow $(PRODUCT_NAME) to connect to bluetooth devices."
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
         }
       ]
-    ], 
+    ],
     "extra": {
       "eas": {
         "projectId": "e84cb5ee-cd83-4aa3-aa17-09e0bdd28b12"

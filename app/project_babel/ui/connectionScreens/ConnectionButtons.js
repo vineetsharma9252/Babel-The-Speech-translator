@@ -1,53 +1,27 @@
-import { Alert, Linking, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, StyleSheet, View } from "react-native";
-import { useContext, useEffect, useLayoutEffect } from "react";
-import * as IntentLauncher from "expo-intent-launcher";
-import BleManager from "react-native-ble-manager";
+import { Alert, StyleSheet, View } from "react-native";
+import { useContext, useEffect } from "react";
 
 import Button from "../Button";
 import { Context } from "../../store/Context";
 
 export default function ConnectionButtons() {
     const { isReceiver, setIsReceiver, isSender, setIsSender,
-         isUserWantConnection, setIsUserWantConnection , isUserConnected, setIsUserConnected } = useContext(Context);
+         isUserWantConnection, setIsUserWantConnection , 
+         isUserConnected, setIsUserConnected } = useContext(Context);
 
     const notConnectedString = "You Are not Connected, Please Connect First !";
 
-    function nativeButtonPressHandler() {
-        if(!isUserConnected) {
-            Alert.alert(notConnectedString, "Please Connect to Another Device through the Bluetooth connection screen.", [{ text: "OK", 
-                onPress: () => {
-                    async function pressHandler() {
-                        if(Platform.OS === "android") 
-                            await IntentLauncher.startActivityAsync('android.settings.BLUETOOTH_SETTINGS');    
-                        else if(Platform.OS === "ios") 
-                            Linking.openURL("App-Prefs:Bluetooth");
-                        setIsUserConnected(true);
-                }
-                pressHandler();
-            }
-            }]);
-        }
+    useEffect(() => {
+        if(isUserWantConnection && !isUserConnected && (isReceiver || isSender))
+            Alert.alert(notConnectedString, "You can connect from the following screen", [{ type: "OK", onPress: () => {} }]);
+    }, [isUserConnected, isUserWantConnection, isReceiver, isSender]);
 
+    function nativeButtonPressHandler() {
         setIsReceiver(true);
         setIsSender(false);
         setIsUserWantConnection(true);
     }
     function foreignButtonPressHandler() {
-        if(!isUserConnected) {
-            Alert.alert(notConnectedString, "Please Connect to Another Device through the Bluetooth connection screen.", [{ text: "OK", 
-                onPress: () => {
-                    async function pressHandler() {
-                        if(Platform.OS === "android") 
-                            await IntentLauncher.startActivityAsync('android.settings.BLUETOOTH_SETTINGS');    
-                        else if(Platform.OS === "ios") 
-                            Linking.openURL("App-Prefs:Bluetooth");
-                        setIsUserConnected(true);
-                }
-                pressHandler();
-            }
-            }]);
-        }
-
         setIsReceiver(false);
         setIsSender(true);
         setIsUserWantConnection(true);
@@ -56,6 +30,10 @@ export default function ConnectionButtons() {
         setIsUserWantConnection(false);
         setIsReceiver(false);
         setIsSender(false);
+
+        return () => {
+            // manage some memory management logic here
+        };
     }
 
     return (

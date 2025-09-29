@@ -14,7 +14,7 @@ export default function App() {
         <ButtonsContextProvider>
         <MainScreen />
         </ButtonsContextProvider>
-        <StatusBar style="auto" />
+        <StatusBar style="inverted" />
       </View>
     </ContextProvider>
   );
