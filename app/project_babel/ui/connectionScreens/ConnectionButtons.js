@@ -28,6 +28,7 @@ export default function ConnectionButtons() {
     }
     function cancelHandler() {
         setIsUserWantConnection(false);
+        setIsUserConnected(false);
         setIsReceiver(false);
         setIsSender(false);
 
@@ -44,7 +45,10 @@ export default function ConnectionButtons() {
                 <Button onPressHandler={foreignButtonPressHandler}>Foreign</Button>
                 </>
             ) : (
-                <Button onPressHandler={cancelHandler}>Cancel</Button>
+                <Button 
+                 onPressHandler={cancelHandler}>
+                    {(!isUserConnected) ? "Cancel" : "Disconnect"}
+                </Button>
             )}
         </View>
     );

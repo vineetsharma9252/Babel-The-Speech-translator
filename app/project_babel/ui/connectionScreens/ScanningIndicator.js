@@ -8,17 +8,17 @@ import Colors from "../../colors/colors";
 import Button from "../Button";
 import { Context } from "../../store/Context";
 
-export default function ScanningIndicator({ text }) {
+export default function ScanningIndicator({ text, connectHandler, callerId }) {
     const windowWidth = Dimensions.get("window").width;
     const windowHeight = Dimensions.get("window").height;
     const SIZE = useSharedValue(Math.min(windowWidth, windowHeight) * 0.65);
     const SHADOWRADIUS = useSharedValue(0);
 
-    const { isSender, isReceiver } = useContext(Context);
+    const { isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected } = useContext(Context);
     const [permission, requestPermission] = useCameraPermissions();
-    const [qrCodeText, setQrCodeText] = useState("");
     const [scanned, setScanned] = useState(false);
-    const [url, setUrl] = useState("hi");
+    const [connecting, setConnecting] = useState(false);
+    const [url, setUrl] = useState(callerId);
 
     useEffect(() => {
         if (!permission?.granted) {
@@ -35,6 +35,12 @@ export default function ScanningIndicator({ text }) {
         SHADOWRADIUS.value = withRepeat(withSpring(SIZE.value * 0.10), -1, true);
     }, []);
 
+    function connectBtnPressHandler() {
+        setConnecting(!connecting ? true : false);
+        if(connecting)
+            connectHandler();
+    }
+
     const animatedStyle = useAnimatedStyle(() => {
         return {
             width: SIZE.value,
@@ -49,76 +55,85 @@ export default function ScanningIndicator({ text }) {
         };
     });
 
-    return (
-        <View style={styles.rootContainer}>
-            <View style={styles.cameraContainer}>
-                {(permission?.granted) &&
-                    (isReceiver ? 
-                    <CameraView
-                        facing="back"
-                        style={styles.qrCameraView}
-                        barcodeScannerSettings={{
-                            barcodeTypes: ["qr"]
-                        }}
-                        onBarcodeScanned={scanned ? undefined : ({ type, data }) => {
-                            if(!scanned) {
-                                setQrCodeText(data);
-                                setScanned(true);
-                            }
-                        }}
-                    /> :
-                    <View style={styles.qrcodeImage}>
-                    <QRCode value={url} size={250} quietZone={20} />
-                    </View>
-                )}
-                {(isReceiver) &&
-                    (<Animated.View style={animatedStyle} />)}
-            </View>
+    console.debug(isUserConnected)
 
-            <View style={styles.secondaryText}>
-                {scanned ?
-                    <View style = {styles.buttonContainer}>
-                    <Button 
-                        MarginTop={"10%"} 
-                        Width={"45%"}
-                        Color={Colors.backgroundColor}
-                        onPressHandler={() => {
-                            setScanned(false);
-                            setQrCodeText("");
-                        }}
-                        >
-                            Scan Again
-                    </Button>
-                    <Button 
-                        MarginTop={"10%"} 
-                        Width={"45%"}
-                        Color={Colors.backgroundColor}
-                        onPressHandler={() => setScanned(false)}
-                        >
-                            Connect
-                    </Button>
+    if(!isUserConnected)
+        return (
+            <View style={styles.rootContainer}>
+                <View style={styles.cameraContainer}>
+                    {(permission?.granted) &&
+                        (isReceiver ? 
+                        <CameraView
+                            facing="back"
+                            style={styles.qrCameraView}
+                            barcodeScannerSettings={{
+                                barcodeTypes: ["qr"]
+                            }}
+                            onBarcodeScanned={scanned ? undefined : ({ type, data }) => {
+                                if(!scanned) {
+                                    setQrCodeText(data);
+                                    setScanned(true);
+                                }
+                            }}
+                        /> :
+                        <View style={styles.qrcodeImage}>
+                            <QRCode value={url} size={250} quietZone={20} />
+                        </View>
+                    )}
+                    {(isReceiver) &&
+                        (<Animated.View style={animatedStyle} />)}
+                </View>
+
+                <View style={styles.secondaryText}>
+                    {(scanned || qrCodeText) ?
+                        <View style = {styles.buttonContainer}>
+                        <Button 
+                            MarginTop={"10%"} 
+                            Width={"45%"}
+                            Color={Colors.backgroundColor}
+                            onPressHandler={() => {
+                                setScanned(false);
+                                setQrCodeText("");
+                            }}
+                            >
+                                Scan Again
+                        </Button>
+                        <Button 
+                            MarginTop={"10%"} 
+                            Width={"45%"}
+                            Color={Colors.backgroundColor}
+                            onPressHandler={connectBtnPressHandler}
+                            >
+                                {connecting? "Connecting..." : "Connect"}
+                        </Button>
+                        </View>
+                        :
+                        <Text style={styles.textStyle}>{isReceiver? 
+                            text : "Scan the QR Code on another device"}
+                        </Text> 
+                    }
+                </View>
+
+                {isReceiver ? 
+                    <View style={styles.qrCodeView}>
+                        <TextInput
+                            style={styles.qrCodeText}
+                            value={qrCodeText}
+                            onChangeText={(t) => {
+                                setQrCodeText(t);
+                            }}
+                        />
                     </View>
-                    :
-                    <Text style={styles.textStyle}>{isReceiver? 
-                        text : "Scan the QR Code on another device"}
-                    </Text> 
+                    : null  
                 }
             </View>
-
-            {isReceiver ? 
-                <View style={styles.qrCodeView}>
-                    <TextInput
-                        style={styles.qrCodeText}
-                        value={qrCodeText}
-                        onChangeText={(t) => {
-                            setQrCodeText(t);
-                        }}
-                    />
-                </View>
-                : null  
-            }
-        </View>
-    );
+        );
+    else if(isUserConnected) 
+        return (
+            <View style={styles.rootContainer}>
+                <Text style={styles.textStyle}>{text}</Text>
+            </View>
+        );
 }
 
 const styles = StyleSheet.create({
@@ -171,7 +186,10 @@ const styles = StyleSheet.create({
         fontSize: 20
     }, 
     qrcodeImage: {
+        flexDirection: "column", 
+        justifyContent: "center", 
+        alignItems: "center", 
         borderRadius: 20,  
-        overflow: "hidden"
+        overflow: "hidden", 
     }
 });

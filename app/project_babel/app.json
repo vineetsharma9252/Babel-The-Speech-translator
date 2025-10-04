@@ -28,6 +28,22 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
+      "manifest": {
+        "usesFeatures": [
+          {
+            "name": "andriod.hardware.camera.autofocus", 
+            "required": true
+          }, 
+          {
+            "name": "andriod.hardware.audio.ouput", 
+            "required": true
+          }, 
+          {
+            "name": "andriod.hardware.microphone", 
+            "required": true
+          }
+        ]
+      }, 
       "package": "com.nitincando1234.project_babel"
     },
     "web": {

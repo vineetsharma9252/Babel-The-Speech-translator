@@ -1,5 +1,6 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# ** for app source code **
 # dependencies
 app/project_babel/node_modules/
 
@@ -43,3 +44,7 @@ app/project_babel/eas.json
 app/project_babel/.expo
 # app/project_babel/package.json
 # app/project_babel/package-lock.json
+
+# ** for backend **
+
+app/project_babel_backend/node_modules

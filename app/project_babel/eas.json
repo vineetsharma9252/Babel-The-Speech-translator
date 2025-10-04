@@ -9,7 +9,8 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal", 
+      "distribution": "internal",
+      "projectRoot": "app/project_babel", 
       "android": {
         "buildType": "apk"
       }
