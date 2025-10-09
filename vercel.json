@@ -1,0 +1,15 @@
+{
+    "version": 2, 
+    "builds": [
+        {
+            "src": "app/project_babel_backend/index.js", 
+            "use": "@vercel/node"
+        }
+    ], 
+    "routes": [
+        {
+            "src": "/(.*)", 
+            "dest": "app/project_babel_backend/index.js"
+        }
+    ]
+}
