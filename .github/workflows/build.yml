@@ -76,10 +76,10 @@ jobs:
       uses: actions/upload-artifact@v4
       with: 
         name: app-debug
-        path: app/project_babel/app-build/android/app-debug.apk
+        path: ./
 
-    - name: 🚢 Submit
-      env:
-        EXPO_TOKEN: ${{ github.event.inputs.expo_token }}
-      if: ${{ github.event.inputs.should_submit }}
-      run: eas submit -p ${{ github.event.inputs.platform }} --profile ${{ github.event.inputs.profile }} --path app-build
+    # - name: 🚢 Submit
+    #   env:
+    #     EXPO_TOKEN: ${{ github.event.inputs.expo_token }}
+    #   if: ${{ github.event.inputs.should_submit }}
+    #   run: eas submit -p ${{ github.event.inputs.platform }} --profile ${{ github.event.inputs.profile }} --path app-build
