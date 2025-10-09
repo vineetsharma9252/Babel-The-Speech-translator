@@ -16,6 +16,7 @@ export function ContextProvider({ children }) {
     const [isUserConnected, setIsUserConnected] = useState(false);
 
     const [qrCodeText, setQrCodeText] = useState("");
+    const [localMicOn, setLocalMicOn] = useState(true);
 
     // TODO
     // note => any-where in the code set the isFirstVisit context only when the user 
@@ -54,7 +55,7 @@ export function ContextProvider({ children }) {
         <Context.Provider value = {
             {    isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
                  isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected, 
-                 qrCodeText, setQrCodeText
+                 qrCodeText, setQrCodeText, localMicOn, setLocalMicOn
             }
             }>
             {children}

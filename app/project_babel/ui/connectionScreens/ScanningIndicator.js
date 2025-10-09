@@ -14,7 +14,9 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
     const SIZE = useSharedValue(Math.min(windowWidth, windowHeight) * 0.65);
     const SHADOWRADIUS = useSharedValue(0);
 
-    const { isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected } = useContext(Context);
+    const { isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected, 
+            localMicOn, setLocalMicOn, isUserWantConnection, setIsUserWantConnection,
+     } = useContext(Context);
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [connecting, setConnecting] = useState(false);
@@ -132,6 +134,9 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
         return (
             <View style={styles.rootContainer}>
                 <Text style={styles.textStyle}>{text}</Text>
+                {/* <View style={styles.callButtonsContainer}> */}
+                    <Button>{(localMicOn ? "Mute" : "Unmute")}</Button>
+                {/* </View> */}
             </View>
         );
 }

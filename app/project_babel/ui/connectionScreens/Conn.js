@@ -10,7 +10,7 @@ import ScanningIndicator from "./ScanningIndicator";
 export default function Conn() {
     const { isSender, setIsSender, isReceiver, 
             setIsReceiver, isUserWantConnection, setIsUserWantConnection, isUserConnected,
-            setIsUserConnected } = useContext(Context);
+            setIsUserConnected, localMicOn, setLocalMicOn } = useContext(Context);
     const [headerText, setHeaderText] = useState("Start the App by pressing one of the buttons below.");
 
     useEffect(() => {
@@ -47,8 +47,6 @@ export default function Conn() {
     const peerConnection = useRef(null);
     const remoteRTCMessage = useRef(null);
     const localRTCMessage = useRef(null);
-
-    const [localMicOn, setLocalMicOn] = useState(true);
 
     useEffect(() => {
         if(!socket.current) return;
