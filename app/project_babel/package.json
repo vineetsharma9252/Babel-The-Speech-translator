@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-firebase/app": "^23.4.0",
+    "@react-native-firebase/database": "^23.4.0",
     "eas-cli": "^16.20.1",
     "expo": "^54.0.12",
     "expo-build-properties": "~1.0.9",
@@ -21,21 +23,22 @@
     "expo-splash-screen": "^31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-system-ui": "^6.0.7",
+    "firebase": "^12.4.0",
     "react": "19.1.0",
     "react-native": "0.81.4",
-    "react-native-ble-manager": "^12.2.0",
-    "react-native-ble-plx": "^3.5.0",
     "react-native-incall-manager": "^4.2.1",
     "react-native-qrcode-svg": "^6.3.15",
     "react-native-reanimated": "^4.1.1",
     "react-native-svg": "15.12.1",
     "react-native-webrtc": "^124.0.6",
     "react-native-worklets": "^0.5.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "uuid": "^13.0.0"
   },
   "private": true,
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "react-native-dotenv": "^3.4.11",
     "typescript": "~5.9.2"
   }
 }

@@ -38,7 +38,10 @@ app/project_babel/.env*.local
 app/project_babel/*.tsbuildinfo
 
 # EAS build
-app/project_babel/eas.json
+app/project_babel/eas.
+
+#.env
+app/project_babel/.env.local
 
 # others
 app/project_babel/.expo
