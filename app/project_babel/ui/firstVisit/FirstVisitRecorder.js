@@ -81,7 +81,7 @@ export default function FirstVisitRecorder() {
     const startSpeechToText = () => {
         try {
             ExpoSpeechRecognitionModule.start({ 
-                lang: "en-IN", 
+                lang: "en-US", 
                 continuous: true, 
                 interimResults: true,
                 iosTaskHint: "unspecified", // "unspecified" | "dictation" | "search" | "confirmation"
