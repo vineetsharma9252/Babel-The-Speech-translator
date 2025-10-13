@@ -45,6 +45,7 @@ app/project_babel/.env.local
 
 # others
 app/project_babel/.expo
+app/project_babel/google-services.json
 # app/project_babel/package.json
 # app/project_babel/package-lock.json
 

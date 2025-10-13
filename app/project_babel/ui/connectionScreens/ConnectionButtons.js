@@ -3,11 +3,16 @@ import { useContext, useEffect } from "react";
 
 import Button from "../Button";
 import { Context } from "../../store/Context";
+import { ConnectionContext } from "../../store/ConnectionContext";
 
 export default function ConnectionButtons() {
     const { isReceiver, setIsReceiver, isSender, setIsSender,
          isUserWantConnection, setIsUserWantConnection , 
-         isUserConnected, setIsUserConnected } = useContext(Context);
+         isUserConnected, setIsUserConnected, setQrCodeText, 
+         setConnecting
+   } = useContext(Context);
+   
+   const { cleanUp } = useContext(ConnectionContext);
 
     const notConnectedString = "You Are not Connected, Please Connect First !";
 
@@ -31,10 +36,11 @@ export default function ConnectionButtons() {
         setIsUserConnected(false);
         setIsReceiver(false);
         setIsSender(false);
+        setQrCodeText("");
+        setConnecting(false);
 
-        return () => {
-            // manage some memory management logic here
-        };
+        // manage some memory management logic here
+        cleanUp();
     }
 
     return (

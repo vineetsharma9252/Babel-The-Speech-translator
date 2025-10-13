@@ -1,14 +1,15 @@
 import { useState, useEffect, useLayoutEffect, useContext } from "react";
-import { View, Text, StyleSheet, Dimensions, TextInput } from "react-native";
+import { View, Text, StyleSheet, Dimensions, TextInput, Alert } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withRepeat } from "react-native-reanimated";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import QRCode from "react-native-qrcode-svg";
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import Colors from "../../colors/colors";
 import Button from "../Button";
 import { Context } from "../../store/Context";
 
-export default function ScanningIndicator({ text, connectHandler, callerId }) {
+export default function ScanningIndicator({ text, connectHandler, callerId, toggleMic }) {
     const windowWidth = Dimensions.get("window").width;
     const windowHeight = Dimensions.get("window").height;
     const SIZE = useSharedValue(Math.min(windowWidth, windowHeight) * 0.65);
@@ -16,10 +17,10 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
 
     const { isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected, 
             localMicOn, setLocalMicOn, isUserWantConnection, setIsUserWantConnection,
+            connecting, setConnecting
      } = useContext(Context);
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
-    const [connecting, setConnecting] = useState(false);
     const [url, setUrl] = useState(callerId);
 
     useEffect(() => {
@@ -38,8 +39,9 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
     }, []);
 
     function connectBtnPressHandler() {
-        setConnecting(!connecting ? true : false);
-        if(connecting)
+        // setConnecting(!connecting ? true : false);
+        // console.error("connecting", connecting)
+        // if(connecting)
             connectHandler();
     }
 
@@ -72,6 +74,17 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
                                 barcodeTypes: ["qr"]
                             }}
                             onBarcodeScanned={scanned ? undefined : ({ type, data }) => {
+                                console.debug(data)
+                                if(/[?\[\]=.,]/.test(data)) {
+                                    Alert.alert(
+                                        "Invalid QR Code", 
+                                        "Please scan valid Room QR Code", 
+                                        [{ type: "OK", onPress: () => { 
+                                            setScanned(false);
+                                            setQrCodeText("");
+                                        } }]
+                                    );
+                                }
                                 if(!scanned) {
                                     setQrCodeText(data);
                                     setScanned(true);
@@ -87,7 +100,7 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
                 </View>
 
                 <View style={styles.secondaryText}>
-                    {(scanned || qrCodeText) ?
+                    {(isReceiver && (scanned || qrCodeText)) ?
                         <View style = {styles.buttonContainer}>
                         <Button 
                             MarginTop={"10%"} 
@@ -98,7 +111,7 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
                                 setQrCodeText("");
                             }}
                             >
-                                Scan Again
+                                {"Scan Again"}
                         </Button>
                         <Button 
                             MarginTop={"10%"} 
@@ -106,15 +119,25 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
                             Color={Colors.backgroundColor}
                             onPressHandler={connectBtnPressHandler}
                             >
-                                {connecting? "Connecting..." : "Connect"}
+                                {"Join"}
                         </Button>
                         </View>
-                        :
-                        <Text style={styles.textStyle}>{isReceiver? 
-                            text : "Scan the QR Code on another device"}
-                        </Text> 
+                        :(isReceiver) &&
+                        <Text style={styles.textStyle}>{text}</Text> 
                     }
                 </View>
+                {(isSender) &&
+                <Button 
+                    MarginTop={"10%"} 
+                    Width={"45%"}
+                    Color={Colors.backgroundColor}
+                    onPressHandler={connectBtnPressHandler}
+                    >
+                        {"Join"}
+                </Button>}                
+
+                {isSender && 
+                    <Text style={styles.textStyle}>{"Scan the QR Code on another device"}</Text>}
 
                 {isReceiver ? 
                     <View style={styles.qrCodeView}>
@@ -135,7 +158,15 @@ export default function ScanningIndicator({ text, connectHandler, callerId }) {
             <View style={styles.rootContainer}>
                 <Text style={styles.textStyle}>{text}</Text>
                 {/* <View style={styles.callButtonsContainer}> */}
-                    <Button>{(localMicOn ? "Mute" : "Unmute")}</Button>
+                    <Button onPressHandler={toggleMic} 
+                        Width={"45%"}
+                        MarginTop={"5%"}
+                        Color={Colors.backgroundColor}>
+                        {(localMicOn ? // Mic is ON
+                            <Ionicons name="mic" size={24} color={Colors.buttonText} /> : 
+                            <Ionicons name="mic-off" size={24} color={Colors.buttonText} />
+                        )}
+                    </Button>
                 {/* </View> */}
             </View>
         );

@@ -14,6 +14,7 @@ export function ContextProvider({ children }) {
     const [isSender, setIsSender] = useState(false);
     const [isUserWantConnection, setIsUserWantConnection] = useState(false);
     const [isUserConnected, setIsUserConnected] = useState(false);
+    const [connecting, setConnecting] = useState(false);
 
     const [qrCodeText, setQrCodeText] = useState("");
     const [localMicOn, setLocalMicOn] = useState(true);
@@ -55,7 +56,8 @@ export function ContextProvider({ children }) {
         <Context.Provider value = {
             {    isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
                  isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected, 
-                 qrCodeText, setQrCodeText, localMicOn, setLocalMicOn
+                 qrCodeText, setQrCodeText, localMicOn, setLocalMicOn, 
+                 connecting, setConnecting
             }
             }>
             {children}
