@@ -34,7 +34,7 @@ export default function ConnectionButtons() {
         setIsUserConnected(false);
         setIsReceiver(false);
         setIsSender(false);
-        // setQrCodeText("");
+        setQrCodeText("");
 
         setTimeout(() => {
             // manage some memory management logic here
