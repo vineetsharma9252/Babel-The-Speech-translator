@@ -51,4 +51,4 @@ app/project_babel/google-services.json
 
 # ** for backend **
 
-app/project_babel_backend/node_modules
+app/signalling_server/node_modules

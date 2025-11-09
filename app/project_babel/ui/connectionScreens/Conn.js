@@ -1,8 +1,9 @@
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { useContext, useEffect, useCallback, useState, useLayoutEffect } from "react";
-import InCallManager from 'react-native-incall-manager';
-import { mediaDevices, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } from "react-native-webrtc";
-import database, { set } from "@react-native-firebase/database";
+import { Buffer } from "buffer";
+import { useContext, useState, useEffect, useRef } from "react";
+// import AudioRecord from "react-native-audio-record";
+// import Sound from "react-native-sound";
+import * as FileSystem from "expo-file-system";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 
@@ -14,7 +15,9 @@ import { ConnectionContext } from "../../store/ConnectionContext";
 export default function Conn() {
     const { isSender, setIsSender, isReceiver, 
             setIsReceiver, isUserWantConnection, setIsUserWantConnection, isUserConnected,
-            setIsUserConnected, localMicOn, setLocalMicOn, qrCodeText, setQrCodeText } = useContext(Context);
+            setIsUserConnected, localMicOn, setLocalMicOn, qrCodeText, setQrCodeText, 
+            selectedLanguage, setSelectedLanguage
+        } = useContext(Context);
     const [headerText, setHeaderText] = useState("Start the App by pressing one of the buttons below.");
 
     useEffect(() => {
@@ -23,217 +26,113 @@ export default function Conn() {
         console.log("isUserWantConnection: ", isUserWantConnection);
         console.log("isUserConnected: ", isUserConnected);
 
-        if(!isUserWantConnection) {
+        console.log("side effect[1]");
+        if(!isUserWantConnection && !isUserConnected && !(isReceiver || isSender)) {
             setHeaderText("Start the App by pressing one of the buttons below.");
             return;
         }
-        setHeaderText(isSender? "You are the sender" : "You are the receiver");
-    }, [isSender, isUserWantConnection]);
+        else if(!isUserConnected) setHeaderText((isSender) ?
+         "You are the sender" : "You are the receiver");
+    }, [isSender, isReceiver, isUserWantConnection, isUserConnected]);
 
     // ** web-rtc logic here **
-
-    const ICE_SERVERS = [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302"}
-    ];
-
+    const interval = useRef(null);
     const {
-        localStream, setLocalStream, 
-        remoteStream, setRemoteStream, 
-        roomId, setRoomId, 
-        pc, 
-        uid, 
-        candidatesRef, 
-        cleanUp
+        ws, device, setDevice, sendTransport, setSendTransport, receiveTransport, setReceiveTransport,
+        roomId, setRoomId, SERVER_URL
     } = useContext(ConnectionContext);
 
-    const initLocalAudio = async () => {
-        try {
-            const stream = await mediaDevices.getUserMedia({ audio: true, video: false});
-            setLocalStream(stream);
-            return stream;
-        } catch (error) {
-            console.error("initLocalAudio: error ", error);
-            Alert.alert("Microphone Access Error", "Unable to Access Microphone.");
-            throw error;
-        }
-    };
+    useEffect(() => {
+        if(!isUserConnected && isSender)
+            setRoomId(uuidv4());
+        console.log("side effect[1]");
+        if(!isUserConnected && isReceiver)
+            setRoomId(qrCodeText);
+    }, [isUserConnected, isSender, isReceiver]);
 
-    const makePeerConnection = () => {
-        pc.current = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-
-        pc.current.onicecandidate = (event) => {
-            if(event.candidate) {
-                const cand = {
-                    candidate: event.candidate.candidate,
-                    sdpMid: event.candidate.sdpMid,
-                    sdpMLineIndex: event.candidate.sdpMLineIndex, 
-                    from: uid.current
-                };
-
-                database().ref(`rooms/${roomId}/candidates/${uid.current}`).push(cand);
-                setIsUserConnected(true);
-            }
-        };
-
-        pc.current.ontrack = (event) => {
-            if(event.streams && event.streams[0])
-                // remote stream => event.streams[0]
-                setRemoteStream(event.streams[0]);
-        };
-
-        pc.current.oniceconnectionstatechange = () => {
-            const state = pc.current?.iceConnectionState;
-            console.log("ICE Connection State:", state);
-            if (state === "connected" || state === "completed") {
-                setIsUserConnected(true);
-            } else if (state === "disconnected" || state === "failed" || state === "closed") {
-                setIsUserConnected(false);
-            }
-        };
-
-
-        return pc.current;
-    };
-
-    function listenForRemoteCandidates() {
-        // if(!roomId) return;
-
-        const ref = database().ref(`rooms/${roomId}/candidates`);
-        candidatesRef.current = ref;
-
-        ref.on("child_added", (userCandidatesSnap) => {
-            userCandidatesSnap.ref.on("child_added", (snap) => {
-                const candidate = snap.val();
-                if(candidate.from === uid.current) return;
-                const iceCandidate = new RTCIceCandidate(candidate);
-                pc.current?.addIceCandidate(iceCandidate).catch(error => 
-                    console.warn("addIceCandidate error: ", error)
-                );
-            });
-        });
-    }
-
-    const prepareLocalAudio = async () => {
-        if(!localStream) {
-            const stream = await initLocalAudio();
-            setLocalStream(stream);
-            return stream;
-        }
-        return localStream;
-    };
-
-    const createRoomAndOffer = async () => {
-        const newRoomId = roomId || uuidv4();
-        if (!roomId) {
-            setRoomId(newRoomId);
-        }
-
-        const stream = localStream || await prepareLocalAudio();
-
-        pc.current = makePeerConnection();
-
-        stream.getTracks().forEach((track) => 
-            pc.current.addTrack(track, stream));
-
-        const offer = await pc.current.createOffer();
-        await pc.current.setLocalDescription(offer);
-
-        const roomRef = database().ref(`rooms/${newRoomId}`);
-        await roomRef.child("offer").set({
-            sdp: offer.sdp,
-            type: offer.type,
-            from: uid.current
-        });
-
-        roomRef.child("answer").on("value", async snapshot => {
-            const val = snapshot.val();
-            if(val && val.sdp) {
-                const answerDescription = new RTCSessionDescription({
-                    type: val.type || "answer", 
-                    sdp: val.sdp
-                });
-                await pc.current.setRemoteDescription(answerDescription);
-            }
-        })
-
-        listenForRemoteCandidates(newRoomId);
-    };
-
-    const joinRoomAndAnswer = async (targetRoomId) => {
-        const room = targetRoomId;
-        setRoomId(room);
-
-        const stream = localStream || await prepareLocalAudio();
-
-        pc.current = makePeerConnection();
+    useEffect(() => {
         
-        stream.getTracks().forEach((track) => 
-            pc.current.addTrack(track, stream));
-
-        const roomRef = database().ref(`rooms/${room}`);
-        const offerSnap = await roomRef.child("offer").once("value");
-        const offer = offerSnap.val();
-        if(!offer || !offer.sdp) {
-            Alert.alert("Error", "Offer not found in room.");
-            return;
-        }
-
-        const offerDescription = new RTCSessionDescription({
-            type: offer.type || "offer", 
-            sdp: offer.sdp
-        });
-        await pc.current.setRemoteDescription(offerDescription);
-
-        const answer = await pc.current.createAnswer();
-        await pc.current.setLocalDescription(answer);
-
-        await roomRef.child("answer").set({
-            sdp: answer.sdp, 
-            type: answer.type, 
-            from: uid.current
-        });
-
-        listenForRemoteCandidates(room);
-    };
-
-    const connectHandler = async () => {
+        if(!isUserWantConnection)   
+            clearInterval(interval.current);
+    }, [isUserWantConnection]);
+    
+    const start = async () => {
         try {
+            console.log("start[roomId]: ", roomId);
+            ws.current = new WebSocket(SERVER_URL);
+            ws.current.onopen = () => {
+                ws.current.send(JSON.stringify(
+                    { type: "join", roomId: roomId, language: selectedLanguage }
+                ));
+            };
 
-            if((isReceiver || isSender) && isUserWantConnection) {
-                InCallManager.start({ media: "audio" });
-                InCallManager.setKeepScreenOn(true);
-                InCallManager.setSpeakerphoneOn(true);
-                InCallManager.setForceSpeakerphoneOn(true);
-            }
-
-            if(isSender) 
-                await createRoomAndOffer();
-            else if(isReceiver)
-                await joinRoomAndAnswer(qrCodeText);
             setIsUserConnected(true);
-        } catch(error) {
-            console.error("connecthandler: error ", error);
+
+            ws.current.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+
+                // if(msg.type === "audio") 
+                //     playAudio(msg.chunk);
+            };
+            ws.current.onerror = e => console.error("WebSocket[initialization] error: ", e);
+        } catch (error) {
+            // setIsUserConnected(false);
+            // setIsUserWantConnection(false);
+            console.log("[start] Error creating WebSocket:", error);
         }
-    };
+
+        // AudioRecord.start();
+
+        // interval.current = setInterval(async () => {
+        //     const chunk = await AudioRecord.read(2048);
+        //     if(chunk && ws.current.readyState === WebSocket.OPEN) {
+        //         ws.current.send(JSON.stringify(
+        //             { type: "audio", roomId,
+        //                  chunk: Buffer.from(chunk, "base64").toString("base64")
+        //             }
+        //         ));
+        //     }
+        // }, 100);
+    };   
+    
+    useEffect(() => {
+        console.log("side effect[2]");
+        if((isReceiver || isSender) && isUserWantConnection && roomId) {
+            // const options = {
+            //     sampleRate: 16000, 
+            //     channels: 1,
+            //     bitsPerSample: 16, 
+            //     audioSource: 6
+            // };
+            console.log("start[reached this level]: ")
+            // AudioRecord.init(options);
+            start();
+        }
+    }, [isUserWantConnection, isSender, isReceiver, roomId]);
+
+    // const playAudio = async chunkBase64 => {
+    //     const filepath = `${FileSystem.documentDirectory}temp.wav`;
+    //     try {
+    //         await FileSystem.writeAsStringAsync(filepath, chunkBase64, {
+    //             encoding: FileSystem.EncodingType.Base64,
+    //         });
+    //         if(FileSystem.getInfoAsync(filepath).exists) {
+    //             const sound = new Sound(filepath, "", error => {
+    //                 if (error) {
+    //                     console.log('failed to load the sound', error);
+    //                     return;
+    //                 }
+    //                 sound.play(() => sound.release());
+    //             });
+    //         }
+    //     } catch (error) {
+    //         console.log("Error writing or playing audio file:", error);
+    //     }
+    // };
 
     const toggleMic = () => {
-        if(!localStream) return;
-        const track = localStream.getAudioTracks()[0];
-        if(!track) return;
-        track.enabled = !track.enabled;
-        setLocalMicOn(track.enabled);
+        setLocalMicOn(!localMicOn);
     };
-
-    // useEffect(() => {
-    //     if((isReceiver || isSender) && isUserWantConnection && isUserConnected) {
-    //             InCallManager.start({ media: "audio" });
-    //             InCallManager.setKeepScreenOn(true);
-    //             InCallManager.setSpeakerphoneOn(true);
-    //             InCallManager.setForceSpeakerphoneOn(true);
-    //     }
-        
-    // }, [isReceiver, isSender, isUserConnected, isUserWantConnection]);
 
     // ** web-rtc logic ends ** //
 
@@ -241,11 +140,11 @@ export default function Conn() {
     <>
     <View style={styles.upperContainer}>
         <Text style={styles.headerText}>{ headerText }</Text>
-        { (isUserWantConnection) ?
-            <ScanningIndicator text={(!isUserConnected) ? "Scanning...": "Connected"}
-                connectHandler={connectHandler}
-                toggleMic={toggleMic}
-                callerId={roomId} /> : null
+        { (isSender || isReceiver) ?
+            <ScanningIndicator 
+            text={(!isUserConnected) ? "Scanning...": "Connected"}
+                connectHandler={start}
+                toggleMic={toggleMic} /> : null
         } 
     </View>
     </>

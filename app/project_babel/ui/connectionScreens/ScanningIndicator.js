@@ -1,182 +1,196 @@
-import { useState, useEffect, useLayoutEffect, useContext } from "react";
+import { useState, useEffect, useLayoutEffect, useContext, useCallback } from "react";
 import { View, Text, StyleSheet, Dimensions, TextInput, Alert } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withRepeat } from "react-native-reanimated";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { Picker } from "@react-native-picker/picker";
 import QRCode from "react-native-qrcode-svg";
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import Colors from "../../colors/colors";
 import Button from "../Button";
 import { Context } from "../../store/Context";
+import { ConnectionContext } from "../../store/ConnectionContext";
 
-export default function ScanningIndicator({ text, connectHandler, callerId, toggleMic }) {
-    const windowWidth = Dimensions.get("window").width;
-    const windowHeight = Dimensions.get("window").height;
-    const SIZE = useSharedValue(Math.min(windowWidth, windowHeight) * 0.65);
-    const SHADOWRADIUS = useSharedValue(0);
+const languageOptions = [
+    { label: "English", value: "en" },
+    { label: "Hindi", value: "hi" },
+    { label: "French", value: "fr" },
+    { label: "Spanish", value: "es" },
+];
 
-    const { isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected, 
-            localMicOn, setLocalMicOn, isUserWantConnection, setIsUserWantConnection,
-            connecting, setConnecting
-     } = useContext(Context);
+export default function ScanningIndicator({ text, connectHandler, toggleMic }) {
+
+    const { 
+        isSender, isReceiver, qrCodeText, setQrCodeText, isUserConnected, 
+        localMicOn, setLocalMicOn, isUserWantConnection, setIsUserWantConnection,
+        selectedLanguage, setSelectedLanguage
+    } = useContext(Context);
+
+    const { roomId } = useContext(ConnectionContext);
+    
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
-    const [url, setUrl] = useState(callerId);
 
     useEffect(() => {
         if (!permission?.granted) {
             requestPermission();
         }
-    }, [permission]);
+    }, [permission, requestPermission]);
 
-    useLayoutEffect(() => {
-        SHADOWRADIUS.value = SIZE.value * 0.01;
-    }, []);
+    const connectBtnPressHandler = () => {
+        setIsUserWantConnection(true);
+    };
 
-    useEffect(() => {
-        SIZE.value = withRepeat(withSpring(SIZE.value * 0.9), -1, true);
-        SHADOWRADIUS.value = withRepeat(withSpring(SIZE.value * 0.10), -1, true);
-    }, []);
+    const handleScanAgain = () => {
+        setScanned(false);
+        setQrCodeText("");
+    };
 
-    function connectBtnPressHandler() {
-        // setConnecting(!connecting ? true : false);
-        // console.error("connecting", connecting)
-        // if(connecting)
-            connectHandler();
-    }
-
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            width: SIZE.value,
-            height: SIZE.value,
-            position: "absolute",
-            borderRadius: 20,
-            borderColor: Colors.buttonText,
-            borderWidth: 4,
-            shadowRadius: SHADOWRADIUS.value,
-            shadowOpacity: 0.8,
-            shadowOffset: { width: 0, height: 0 }
-        };
-    });
-
-    console.debug(isUserConnected)
-
-    if(!isUserConnected)
+    const handleBarcodeScanned = useCallback(({ data }) => {
+        if (/[?\[\]=.,]/.test(data)) {
+            setScanned(true);
+            // setQrCodeText("");
+            Alert.alert(
+                "Invalid QR Code", 
+                "Please scan valid Room QR Code", 
+                [{ type: "OK", onPress: handleScanAgain }]
+            );
+        } else {
+            if (!scanned) { 
+                setQrCodeText(data);
+                setScanned(true);
+            }
+        }
+    }, [scanned, setQrCodeText, handleScanAgain]);
+    
+    const LanguagePicker = () => (
+        <Picker
+            selectedValue={selectedLanguage}
+            onValueChange={(itemValue) => {
+                setSelectedLanguage(itemValue);
+            }}
+        >
+            {languageOptions.map(lang => (
+                <Picker.Item key={lang.value} label={lang.label} value={lang.value} />
+            ))}
+        </Picker>
+    );
+    
+    if (!isUserConnected && (isSender || isReceiver)) {
         return (
             <View style={styles.rootContainer}>
+                
                 <View style={styles.cameraContainer}>
-                    {(permission?.granted) &&
-                        (isReceiver ? 
-                        <CameraView
-                            facing="back"
-                            style={styles.qrCameraView}
-                            barcodeScannerSettings={{
-                                barcodeTypes: ["qr"]
-                            }}
-                            onBarcodeScanned={scanned ? undefined : ({ type, data }) => {
-                                console.debug(data)
-                                if(/[?\[\]=.,]/.test(data)) {
-                                    Alert.alert(
-                                        "Invalid QR Code", 
-                                        "Please scan valid Room QR Code", 
-                                        [{ type: "OK", onPress: () => { 
-                                            setScanned(false);
-                                            setQrCodeText("");
-                                        } }]
-                                    );
+                    {permission?.granted && (
+                        (isReceiver) ? (
+                            <CameraView
+                                facing="back"
+                                style={styles.qrCameraView}
+                                barcodeScannerSettings={{
+                                    barcodeTypes: ["qr"]
+                                }}
+                                onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+                            />
+                        ) : (
+
+                            <View style={styles.qrcodeImage}>
+                                {
+                                (roomId && isSender) ? 
+                                    <QRCode value={roomId} size={250} quietZone={20} /> : null
                                 }
-                                if(!scanned) {
-                                    setQrCodeText(data);
-                                    setScanned(true);
-                                }
-                            }}
-                        /> :
-                        <View style={styles.qrcodeImage}>
-                            <QRCode value={url} size={250} quietZone={20} />
-                        </View>
+                            </View>
+                        )
                     )}
-                    {(isReceiver) &&
-                        (<Animated.View style={animatedStyle} />)}
                 </View>
 
-                <View style={styles.secondaryText}>
-                    {(isReceiver && (scanned || qrCodeText)) ?
-                        <View style = {styles.buttonContainer}>
+                {isReceiver && (
+                    <>
+                        <View style={styles.secondaryText}>
+                            {(scanned || qrCodeText) ? (
+                                <View style = {styles.buttonContainer}>
+                                    <Button 
+                                        MarginTop={"10%"} 
+                                        Width={"45%"}
+                                        Color={Colors.backgroundColor}
+                                        onPressHandler={handleScanAgain}
+                                    >
+                                        {"Scan Again"}
+                                    </Button>
+                                    <Button 
+                                        MarginTop={"10%"} 
+                                        Width={"45%"}
+                                        Color={Colors.backgroundColor}
+                                        onPressHandler={connectBtnPressHandler}
+                                    >
+                                        {"Join"}
+                                    </Button>
+                                </View>
+                            ) : (
+                                <Text style={styles.textStyle}>{text}</Text> 
+                            )}
+                        </View>
+                        
+                        <View style={styles.qrCodeView}>
+                            <TextInput
+                                style={styles.qrCodeText}
+                                value={qrCodeText}
+                                onChangeText={(t) => setQrCodeText(t)}
+                                placeholder="Or enter code manually"
+                                placeholderTextColor={Colors.buttonText}
+                            />
+                            <LanguagePicker />
+                        </View>
+                    </>
+                )}
+
+                {isSender && (
+                    <>
                         <Button 
-                            MarginTop={"10%"} 
-                            Width={"45%"}
-                            Color={Colors.backgroundColor}
-                            onPressHandler={() => {
-                                setScanned(false);
-                                setQrCodeText("");
-                            }}
-                            >
-                                {"Scan Again"}
-                        </Button>
-                        <Button 
-                            MarginTop={"10%"} 
+                            MarginTop={"5%"} 
                             Width={"45%"}
                             Color={Colors.backgroundColor}
                             onPressHandler={connectBtnPressHandler}
-                            >
-                                {"Join"}
+                        >
+                            {"Join"}
                         </Button>
+                        <View style={styles.senderInfoContainer}>
+                            <Text style={[styles.textStyle, {
+                                marginTop: "5%"
+                            }]}>{"Scan the QR Code on another device"}</Text>
+                            <LanguagePicker /> 
                         </View>
-                        :(isReceiver) &&
-                        <Text style={styles.textStyle}>{text}</Text> 
-                    }
-                </View>
-                {(isSender) &&
-                <Button 
-                    MarginTop={"10%"} 
-                    Width={"45%"}
-                    Color={Colors.backgroundColor}
-                    onPressHandler={connectBtnPressHandler}
-                    >
-                        {"Join"}
-                </Button>}                
-
-                {isSender && 
-                    <Text style={styles.textStyle}>{"Scan the QR Code on another device"}</Text>}
-
-                {isReceiver ? 
-                    <View style={styles.qrCodeView}>
-                        <TextInput
-                            style={styles.qrCodeText}
-                            value={qrCodeText}
-                            onChangeText={(t) => {
-                                setQrCodeText(t);
-                            }}
-                        />
-                    </View>
-                    : null  
-                }
+                    </>
+                )}
             </View>
         );
-    else if(isUserConnected) 
+    } 
+    
+    else if (isUserConnected) {
         return (
             <View style={styles.rootContainer}>
                 <Text style={styles.textStyle}>{text}</Text>
-                {/* <View style={styles.callButtonsContainer}> */}
-                    <Button onPressHandler={toggleMic} 
-                        Width={"45%"}
-                        MarginTop={"5%"}
-                        Color={Colors.backgroundColor}>
-                        {(localMicOn ? // Mic is ON
-                            <Ionicons name="mic" size={24} color={Colors.buttonText} /> : 
-                            <Ionicons name="mic-off" size={24} color={Colors.buttonText} />
-                        )}
-                    </Button>
-                {/* </View> */}
+                <Button 
+                    onPressHandler={toggleMic} 
+                    Width={"45%"}
+                    MarginTop={"5%"}
+                    Color={Colors.backgroundColor}
+                >
+                    {localMicOn ? 
+                        <Ionicons name="mic" size={24} color={Colors.buttonText} /> : 
+                        <Ionicons name="mic-off" size={24} color={Colors.buttonText} />
+                    }
+                </Button>
             </View>
         );
+    }
+
+    return null;
 }
 
 const styles = StyleSheet.create({
     rootContainer: {
         marginVertical: "5%",
         width: "80%",
-        height: "65%",
+        height: "80%",
         justifyContent: "center",
         alignItems: "center"
     },
@@ -194,10 +208,13 @@ const styles = StyleSheet.create({
     },
     textStyle: {
         color: Colors.buttonText,
-        fontFamily: "Boldonse-Regular",
+        fontFamily: "Boldonse-Regular", 
         fontSize: 20,
         textAlign: "center",
         marginTop: "10%"
+    },
+    secondaryText: {
+        width: "100%", 
     },
     buttonContainer: {
         flexDirection: "row", 
@@ -205,6 +222,10 @@ const styles = StyleSheet.create({
         alignItems: "center", 
         width: "100%"
     }, 
+    senderInfoContainer: {
+        width: "100%",
+        marginTop: "5%",
+    },
     qrCodeView: {
         flex: 1, 
         width: "100%", 
@@ -219,13 +240,14 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         textAlign: "center",
         fontFamily: "Boldonse-Regular",
-        fontSize: 20
+        fontSize: 20,
+        padding: 10,
     }, 
     qrcodeImage: {
         flexDirection: "column", 
         justifyContent: "center", 
         alignItems: "center", 
-        borderRadius: 20,  
+        borderRadius: 20,  
         overflow: "hidden", 
     }
 });
