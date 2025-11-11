@@ -1,4 +1,4 @@
-import { useEffect, createContext, useState, use } from "react";
+import { useEffect, createContext, useState, use, useRef } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,19 +9,13 @@ export function ContextProvider({ children }) {
     const [isLoaded, error] = useFonts({
     "Boldonse-Regular": require("../assets/fonts/Boldonse-Regular.ttf"),
     });
-    const [isFirstVisit, setIsFirstVisited] = useState(null);
-    const [isReceiver, setIsReceiver] = useState(false);
-    const [isSender, setIsSender] = useState(false);
-    const [selectedLanguage, setSelectedLanguage] = useState("");
-    const [isUserWantConnection, setIsUserWantConnection] = useState(false);
-    const [isUserConnected, setIsUserConnected] = useState(false);
 
+    const [connectionState, setConnectionState] = useState("initial");
+    const [isFirstVisit, setIsFirstVisited] = useState(null);
     const [qrCodeText, setQrCodeText] = useState("");
     const [localMicOn, setLocalMicOn] = useState(true);
+    const selectedLanguage = useRef("en");
 
-    // TODO
-    // note => any-where in the code set the isFirstVisit context only when the user 
-    // has succefully recorded their voice
 
     useEffect(() => {
     async function checkFirstVisit() {
@@ -54,11 +48,9 @@ export function ContextProvider({ children }) {
 
     return (
         <Context.Provider value = {
-            {    isFirstVisit, setIsFirstVisited, isSender, setIsSender, isReceiver, setIsReceiver,
-                 isUserWantConnection, setIsUserWantConnection, isUserConnected, setIsUserConnected, 
-                 qrCodeText, setQrCodeText, localMicOn, setLocalMicOn, 
-                 selectedLanguage, setSelectedLanguage
-            }
+            { connectionState, setConnectionState, isFirstVisit, setIsFirstVisited, 
+            qrCodeText, localMicOn, setLocalMicOn, qrCodeText, setQrCodeText, 
+            selectedLanguage }
             }>
             {children}
         </Context.Provider>

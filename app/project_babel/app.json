@@ -13,7 +13,6 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "googleServicesFile": "./google-services.json",
       "supportsTablet": true,
       "permissions": {
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone to send voice messages.",
@@ -21,16 +20,16 @@
       }
     },
     "android": {
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.RECORD_AUDIO", 
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA"
+      ], 
       "manifest": {
         "usesFeatures": [
           {
@@ -53,7 +52,6 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-firebase/app",
       [
         "expo-speech-recognition",
         {
@@ -84,6 +82,12 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
           "recordAudioAndroid": true
+        }
+      ], 
+      [
+        "react-native-vision-camera",
+        {
+          "enableCodeScanner": true
         }
       ]
     ],

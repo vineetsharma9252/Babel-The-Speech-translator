@@ -1,7 +1,7 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Colors from "../colors/colors";
 
-export default function Button({ children, onPressHandler, MarginTop, Width, Color, FontSize }) {
+export default function Button({ children, onPressHandler, MarginTop, Width, Color, FontSize, isDisabled }) {
 
     function buttonPressHandler() {
         onPressHandler();
@@ -13,6 +13,7 @@ export default function Button({ children, onPressHandler, MarginTop, Width, Col
             { marginTop: MarginTop? MarginTop : "0%" }, 
             { backgroundColor: Color? Color : Colors.cardPrimary }
         ]}
+         disabled={isDisabled}
          onPress={ buttonPressHandler }>
         <View >
             <Text style={[styles.buttonText, { fontSize: FontSize? FontSize : 16 }]}>{children}</Text>
@@ -27,7 +28,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.cardPrimary, 
         margin: "2%", 
         padding: "2%", 
-        marginHorizontal: "5%",
+        marginHorizontal: "2%",
         justifyContent: "center", 
         alignItems: "center", 
         borderRadius: 10
