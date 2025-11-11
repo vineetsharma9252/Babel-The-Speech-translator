@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Translation Test</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .recording { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🎤 Voice Translation Test</h1>
+    
+    <div>
+        <button onclick="connect()">Connect to Server</button>
+        <button onclick="startRecording()" id="recordBtn">Start Recording</button>
+        <button onclick="sendTestAudio()">Send Test Audio</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    
+    <div id="status" class="status disconnected">Status: Disconnected</div>
+    
+    <div>
+        <h3>Languages:</h3>
+        <label>From: </label>
+        <select id="sourceLang">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+        </select>
+        
+        <label>To: </label>
+        <select id="targetLang">
+            <option value="es">Spanish</option>
+            <option value="en">English</option>
+            <option value="fr">French</option>
+        </select>
+        
+        <button onclick="setLanguages()">Set Languages</button>
+    </div>
+    
+    <div id="output" style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; min-height: 100px;">
+        <h3>Translation Results:</h3>
+        <p>Results will appear here...</p>
+    </div>
+
+    <script>
+        let socket = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+
+        function connect() {
+            socket = io('http://localhost:8080');
+            
+            socket.on('connected', (data) => {
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('status').textContent = `Connected: ${data.userId}`;
+                console.log('✅ Connected:', data);
+            });
+            
+            socket.on('languages_updated', (data) => {
+                console.log('🌐 Languages updated:', data);
+                document.getElementById('output').innerHTML += `<p>Languages set to: ${data.source} → ${data.target}</p>`;
+            });
+            
+            socket.on('translation_result', (data) => {
+                console.log('🎯 Translation:', data);
+                document.getElementById('output').innerHTML = `
+                    <h3>Translation Results:</h3>
+                    <p><strong>Original (${data.sourceLang}):</strong> ${data.originalText}</p>
+                    <p><strong>Translated (${data.targetLang}):</strong> ${data.translatedText}</p>
+                    <hr>
+                ` + document.getElementById('output').innerHTML;
+            });
+            
+            socket.on('translated_audio', (data) => {
+                console.log('🔊 Audio ready:', data);
+                // Play the translated audio
+                const audio = new Audio('http://localhost:8080' + data.audioUrl);
+                audio.play().then(() => {
+                    document.getElementById('output').innerHTML += `<p>🎵 Playing translated audio...</p>`;
+                }).catch(e => {
+                    console.log('Audio play failed:', e);
+                });
+            });
+            
+            socket.on('error', (data) => {
+                console.error('❌ Error:', data);
+                document.getElementById('output').innerHTML += `<p style="color: red;">Error: ${data.message}</p>`;
+            });
+            
+            socket.on('disconnect', () => {
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('status').textContent = 'Status: Disconnected';
+            });
+        }
+
+        function setLanguages() {
+            if (!socket) {
+                alert('Please connect first!');
+                return;
+            }
+            
+            const sourceLang = document.getElementById('sourceLang').value;
+            const targetLang = document.getElementById('targetLang').value;
+            
+            socket.emit('set_languages', {
+                source: sourceLang,
+                target: targetLang
+            });
+        }
+
+        async function startRecording() {
+            if (!socket) {
+                alert('Please connect first!');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true
+                    } 
+                });
+
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    // Convert to base64
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64data = reader.result.split(',')[1];
+                        
+                        // Send to server
+                        socket.emit('audio_data', {
+                            audio: base64data,
+                            format: 'webm'
+                        });
+                        
+                        document.getElementById('output').innerHTML += `<p>📤 Sent audio data to server...</p>`;
+                    };
+                    reader.readAsDataURL(audioBlob);
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('recordBtn').textContent = 'Stop Recording';
+                document.getElementById('recordBtn').onclick = stopRecording;
+                document.getElementById('status').className = 'status recording';
+                document.getElementById('status').textContent = 'Status: Recording... Speak now!';
+
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                alert('Error accessing microphone: ' + error.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('recordBtn').textContent = 'Start Recording';
+                document.getElementById('recordBtn').onclick = startRecording;
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('status').textContent = 'Status: Processing audio...';
+            }
+        }
+
+        function sendTestAudio() {
+            if (!socket) {
+                alert('Please connect first!');
+                return;
+            }
+
+            // Create a simple WAV file with a test tone
+            const sampleRate = 16000;
+            const duration = 2.0; // 2 seconds
+            const samples = Math.floor(sampleRate * duration);
+            
+            // Create WAV file bytes
+            const buffer = new ArrayBuffer(44 + samples * 2);
+            const view = new DataView(buffer);
+            
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);  // PCM format
+            view.setUint16(22, 1, true);  // Mono
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);  // Block align
+            view.setUint16(34, 16, true); // Bits per sample
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples * 2, true);
+            
+            // Create a simple sine wave (440Hz tone)
+            for (let i = 0; i < samples; i++) {
+                const sample = Math.sin(2 * Math.PI * 440 * i / sampleRate);
+                view.setInt16(44 + i * 2, sample * 32767, true);
+            }
+            
+            // Convert to base64
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            const base64Audio = btoa(binary);
+            
+            // Send to server
+            socket.emit('audio_data', {
+                audio: base64Audio,
+                format: 'wav'
+            });
+            
+            document.getElementById('output').innerHTML += `<p>📤 Sent test audio (440Hz tone)...</p>`;
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('status').textContent = 'Status: Disconnected';
+            }
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+    </script>
+</body>
+</html>
