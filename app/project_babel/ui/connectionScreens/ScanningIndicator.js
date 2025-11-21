@@ -34,7 +34,11 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
     };
 
     // const handleBarcodeScanned = useCallback(({ data }) => {
-    const handleBarcodeScanned = useCallback(({ value }) => {
+    const handleBarcodeScanned = useCallback((code) => {
+
+        if(!code || !code.value) return;
+        const { value } = code;
+
         if (/[?\[\]=.,]/.test(value)) {
             setScanned(true);
             setQrCodeText("");
@@ -80,51 +84,13 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
         </View>
     );
 
-    const CameraView = () => {
-        const { hasPermission, requestPermission } = useCameraPermission();
-
-        if(!hasPermission)
-            requestPermission().then();
-
-        const cameraDevice = useCameraDevice("back");
-        const codeScanner = useCodeScanner({
-            codeTypes: ["qr"], 
-            onCodeScanned: codes => {
-                handleBarcodeScanned(codes[0])
-            }
-        });
-
-        return (
-            <View style={styles.cameraContainer}>
-            <Camera
-                style={[styles.qrCameraView, 
-                    { flex: 1, transform: [{ scale: 0.98 }] }]
-                }
-                isActive={true}
-                codeScanner={codeScanner}
-                device={cameraDevice}
-            />
-            </View>
-        );
-
-        // return (
-        //     <CameraView 
-        //         facing="back"
-        //         style={styles.qrCameraView}
-        //         barcodeScannerSettings={{
-        //             barcodeTypes: ["qr"]
-        //         }}
-        //         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-        //         />
-        // );
-    };
-
     const SenderComponent = () => {
+        console.debug("SenderComponent[roomId]: ", roomId);
         return (
             <View style={styles.secondaryRootContainer}>
                 <View style={styles.qrCodeView}>
-                    {roomId.current && roomId.current !== "" ? 
-                        <QRCode value={roomId.current}
+                    {roomId && roomId !== "" ? 
+                        <QRCode value={roomId}
                          size={250} 
                          backgroundColor="transparent"
                          quietZone={20} />
@@ -143,6 +109,38 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
             </View>
         );};
     const ReceiverComponent = () => {
+
+        const CameraView = () => {
+            const { hasPermission, requestPermission } = useCameraPermission();
+
+            if(!hasPermission)
+                requestPermission().then();
+
+            const cameraDevice = useCameraDevice("back");
+            const codeScanner = useCodeScanner({
+                codeTypes: ["qr"], 
+                onCodeScanned: codes => {
+                    if(!codes || codes.length == 0) return;
+                    const code = codes[0];
+                    if(!code?.value) return;
+                    handleBarcodeScanned(code);
+                }
+            });
+
+            return (
+                <View style={styles.cameraContainer}>
+                <Camera
+                    style={[styles.qrCameraView, 
+                        { flex: 1, transform: [{ scale: 0.98 }] }]
+                    }
+                    isActive={true}
+                    codeScanner={codeScanner}
+                    device={cameraDevice}
+                />
+                </View>
+            );
+        };        
+
         return (
             <View style={styles.secondaryRootContainer}>
                     {/* {hasPermission?.granted && <CameraView />} */}

@@ -2,15 +2,15 @@ import { Alert, StyleSheet, Text, View } from "react-native";
 import { useContext, useEffect, useRef } from "react";
 import ScanningIndicator from "./ScanningIndicator";
 import "react-native-get-random-values";
-import { v4 as uuidv4 } from "uuid";
-import AudioRecord from "react-native-audio-record";
-import * as FileSystem from "expo-file-system";
-import Sound from "react-native-sound";
 import { Buffer } from "buffer";
+import Sound from "react-native-sound";
+import LiveAudioStream from 'react-native-live-audio-stream';
+import PCM from 'react-native-pcm-player-lite'
 
 import Colors from "../../colors/colors";
 import { ConnectionContext } from "../../store/ConnectionContext";
 import { Context } from "../../store/Context";
+import Toast from "react-native-toast-message";
 
 export default function Conn() {
 
@@ -18,99 +18,144 @@ export default function Conn() {
             setQrCodeText, selectedLanguage, localMicOn, setLocalMicOn } = useContext(Context);
 
     // Audio Transmission: Logic Here
-        const interval = useRef(null);
-        const { ws, roomId, SERVER_URL } = useContext(ConnectionContext);
+        const { socket, roomId, setRoomId, SERVER_URL } = useContext(ConnectionContext);
 
         useEffect(() => {
+            // if(roomId) return;
             if(connectionState == "sender")
-                roomId.current = uuidv4();
+                setRoomId(String(parseInt(Math.random() * 100000)));
              if(connectionState == "receiver" && qrCodeText !== "")
-                roomId.current = qrCodeText;
-            // else if(connectionState == "connecting") {
-                
-            // }
-            console.log("useEffect[roomId]: ", roomId.current);
-        }, [connectionState, roomId, qrCodeText]);
-
-        useEffect(() => {
-                     
-        }, [ws]);
+                setRoomId(qrCodeText);
+            console.log("useEffect[roomId]: ", roomId);
+        }, [connectionState, qrCodeText]);
 
         const startConnection = async () => {
-        try {
-            console.log("start[roomId]: ", roomId.current);
-            ws.current = new WebSocket(SERVER_URL);
-            ws.current.onopen = () => {
-                ws.current.send(JSON.stringify(
-                    { type: "join", roomId: roomId.current, language: selectedLanguage.current }
-                ));
-            };
+            if(selectedLanguage.current === "" || selectedLanguage.current === null) {
+                Alert.alert("No Incoming Language Selected", "Please Select the language", [{ type: "OK"}]);
+                return;
+            }
+            try {
+                // joining to the server side room
+                if(connectionState == "sender")
+                    socket.emit("joinRoom", { username: "sender", roomId: roomId }, response => {
+                            if(response.roomIsFull || response.senderExists) {
+                                Alert.alert("Room is Full or Sender already there", "Only 2 Client is supported !", 
+                                    [{ type: "OK" }]);
+                                setConnectionState("initial");
+                                return;
+                            }
+                        });
+                else if(connectionState == "receiver")
+                    socket.emit("joinRoom", { username: "receiver", roomId: roomId }, response => {
+                            if(response.roomIsFull || response.senderExists) {
+                                Alert.alert("Room is Full or Receiver already there", "Only 2 Client is supported !", 
+                                    [{ type: "OK" }]);
+                                setConnectionState("initial");
+                                return;
+                            }
+                        });
+                else 
+                    throw "Unknown State";
 
-            await setConnectionState("connected");
-            console.debug("connected");
+                setConnectionState("connecting");
+                socket.once("connect_error", error => {
+                    console.error("[connect_error]Problem in connecting to the server: ", error);
+                    Alert.alert("Connection failed", "Try Again", [{ type: "OK" }]);
+                    setConnectionState("initial");
+                });
 
-            ws.current.onerror = e => console.error("WebSocket[initialization] error: ", e);
-        } catch (error) {
-            Alert.alert(
-                "Error Connecting Server", 
-                "Please try again later", 
-                [{ type: "OK" , onPress: async () => {
-                    await setConnectionState("initial");
-                } }]
-            );
-            console.log("[start] Error creating WebSocket:", error);
-        }
+                socket.once("roomJoined", data => {
+                    console.log(`Successfully connected room: ${data.roomId} as: ${data.username}`)
+                    setConnectionState("connected");
+                    setLocalMicOn(true);
+                    Sound.setCategory("Playback");
+                    console.debug("connected");
+                });
 
+                socket.on("newParticipantJoined", username => {
+                    Toast.show({
+                        type: "info", 
+                        text1: `${username} has joined the your room: ${roomId}`
+                    });
+                });
+                socket.on("participantLeft", username => {
+                    Toast.show({
+                        type: "info", 
+                        text1: `${username} has left your room: ${roomId}`
+                    });
+                });
+
+            } catch (error) {
+                Alert.alert(
+                    "Error Connecting Server", 
+                    "Please try again later", 
+                    [{ type: "OK" , onPress: async () => {
+                        await setConnectionState("initial");
+                    } }]
+                );
+                console.log("[start] Error creating WebSocket:", error);
+                return;
+            }
+    };
+    
+    useEffect(() => {
+        if(!socket) return;
         const options = {
             sampleRate: 16000, 
             channels: 1,
             bitsPerSample: 16, 
-            audioSource: 6, 
+            audioSource: 1, 
+            bufferSize: 4096
         };
-        AudioRecord.init(options);
-        AudioRecord.start();
 
-        interval.current = setInterval(async () => {
-            ws.current.onmessage = (e) => {
-                const msg = JSON.parse(e.data);
-
-                if(msg.type === "audio") 
-                    playAudio(msg.chunk);
-            };   
-
-            if(!localMicOn.current) return;
-            const chunk = await AudioRecord.read(2048);
-            if(chunk && ws.current.readyState === WebSocket.OPEN) {
-                ws.current.send(JSON.stringify(
-                    { type: "audio", roomId,
-                         chunk: Buffer.from(chunk, "base64").toString("base64")
-                    }
-                ));
-            }
-        }, 100);
-    };   
-
-    const playAudio = async chunkBase64 => {
-        const filepath = `${FileSystem.documentDirectory}temp.wav`;
-        console.log("I am here");
         try {
-            await FileSystem.writeAsStringAsync(filepath, chunkBase64, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            if(FileSystem.getInfoAsync(filepath).exists) {
-                const sound = new Sound(filepath, "", error => {
-                    if (error) {
-                        console.log('failed to load the sound', error);
-                        return;
-                    }
-                    sound.play(() => sound.release());
-                });
+        LiveAudioStream.init(options);
+
+        const startPCMPlayer = async () => {
+            await PCM.start(16000);
+        };
+        startPCMPlayer();
+        } catch(error) {
+            console.log("Error starting PCM player or LiveAudioStream: ", error);
+        }
+
+        const dataListener = LiveAudioStream.on("data", data => {
+            // below in data language = i need this lanaguage from sender 
+            const binBuffer = Buffer.from(data, "base64");
+            socket.emit("audioFromClient", { data: binBuffer, roomId, language: selectedLanguage.current });
+        });        
+
+        return () => {
+            try {
+                if(localMicOn)
+                    LiveAudioStream.stop();
+                dataListener.remove();
+            } catch(error) {
+                console.warn("Error[LiveAudioStream.stop()]: ", error);
             }
-        }
-         catch (error) {
-            console.log("Error writing or playing audio file:", error);
-        }
-    };
+        };
+    }, [socket, roomId]);
+
+    useEffect(() => {
+        if (!socket || connectionState !== "connected") return;
+
+        const handleIncomingAudio = (data) => {
+            const data64 = Buffer.from(data).toString("base64");
+            PCM.enqueueBase64(data64);
+        };
+
+        socket.on("audioFromServer", handleIncomingAudio);
+
+        return () => {
+            socket.off("audioFromServer", handleIncomingAudio);
+        };
+    }, [connectionState, socket]);
+
+    useEffect(() => {
+        if(!localMicOn)
+            LiveAudioStream.stop();
+        else if(localMicOn) LiveAudioStream.start();
+    }, [localMicOn]);
 
     // Audio Transmission: Logic Ends
 
@@ -138,12 +183,17 @@ export default function Conn() {
                 :
                 undefined
             }
-            {connectionState == "connected" || connectionState == "connecting" ?
+            {connectionState == "connected" ?
                 <Text style={styles.headerText}>
                     {"Connected"}
                 </Text>
                 :
                 undefined
+            }
+            {connectionState == "connecting" ? 
+                <Text style={styles.headerText}>
+                    {"Connecting"}
+                </Text>: undefined
             }
             {connectionState != "initial" ?
                 <ScanningIndicator 
@@ -153,6 +203,7 @@ export default function Conn() {
                     } }
                 /> : undefined
             }
+            <Toast />
         </View>
         </>
     );

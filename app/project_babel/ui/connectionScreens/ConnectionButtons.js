@@ -1,6 +1,6 @@
 import { Alert, StyleSheet, View } from "react-native";
 import { useContext, useEffect } from "react";
-import AudioRecord from "react-native-audio-record";
+import PCM from 'react-native-pcm-player-lite'
 
 import Button from "../Button";
 import { Context } from "../../store/Context";
@@ -9,7 +9,7 @@ import { ConnectionContext } from "../../store/ConnectionContext";
 export default function ConnectionButtons() {
     const { connectionState, setConnectionState, qrCodeText, setQrCodeText } = useContext(Context);
 
-   const { ws } = useContext(ConnectionContext);
+   const { socket, roomId } = useContext(ConnectionContext);
 
     async function nativeButtonPressHandler() {
         await setConnectionState("receiver");
@@ -19,17 +19,22 @@ export default function ConnectionButtons() {
     }
     async function cancelHandler() {
         await setConnectionState("initial");
+        if(connectionState === "connected") {
+            await PCM.stop();
+            const username = connectionState === "sender" ? "sender" : "receiver";
+            socket.emit("leaveRoom", ({ username, roomId }));
+        }
         setQrCodeText("");
 
+
         //     // manage some memory management logic here
-        try {
-            AudioRecord.stop();
-            if(ws.current && ws.current.readyState === WebSocket.OPEN) {
-                ws.current.close();
-            }
-        } catch (error) {
-            console.log("Error stopping AudioRecord:", error);
-        }
+        // try {
+        //     if(ws.current && ws.current.readyState === WebSocket.OPEN) {
+        //         ws.current.close();
+        //     }
+        // } catch (error) {
+        //     console.log("Error stopping AudioRecord:", error);
+        // }
     }
 
     return (
@@ -41,6 +46,12 @@ export default function ConnectionButtons() {
                 </> : undefined
             }
             {connectionState == "receiver" || connectionState == "sender" ? 
+                <Button 
+                 onPressHandler={cancelHandler}>
+                    {"Cancel"}
+                </Button> : undefined
+            }
+            {connectionState == "connecting" ? 
                 <Button 
                  onPressHandler={cancelHandler}>
                     {"Cancel"}

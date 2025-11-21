@@ -1,16 +1,23 @@
-import { createContext, useState, useRef } from "react";
+import { createContext, useState, useRef, useMemo } from "react";
+import { io } from "socket.io-client";
 
 export const ConnectionContext = createContext();
 
 export default function ConnectionContextProvider({ children }) {
-    const ws = useRef(null);
     // roomId = url in ScanningIndicator.js
-    const roomId = useRef(undefined);
-    const SERVER_URL = "ws://10.153.117.78:3000";
+    const [roomId, setRoomId] = useState(undefined);
+    const SERVER_URL = "http://192.168.1.34:3000";
+    
+    const socket = useMemo(() => 
+        io(SERVER_URL, {
+        transports: ["websocket"], 
+        reconnectionAttempts: 5
+        })
+    , [SERVER_URL]);
     
     return (
         <ConnectionContext.Provider value={
-            { ws, roomId, SERVER_URL }
+            { socket, roomId, setRoomId, SERVER_URL }
         }>
             {children}
         </ConnectionContext.Provider>

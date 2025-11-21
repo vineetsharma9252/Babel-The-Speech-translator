@@ -51,5 +51,5 @@ app/project_babel/google-services.json
 
 # ** for backend **
 
-app/signalling_server/node_modules
-app/signalling_server/package_lock.json
+app/server/node_modules
+app/server/package_lock.json

@@ -13,7 +13,7 @@ export function ContextProvider({ children }) {
     const [connectionState, setConnectionState] = useState("initial");
     const [isFirstVisit, setIsFirstVisited] = useState(null);
     const [qrCodeText, setQrCodeText] = useState("");
-    const [localMicOn, setLocalMicOn] = useState(true);
+    const [localMicOn, setLocalMicOn] = useState(false);
     const selectedLanguage = useRef("en");
 
 
