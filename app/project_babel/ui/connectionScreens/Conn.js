@@ -1,5 +1,5 @@
-import { Alert, StyleSheet, Text, View } from "react-native";
-import { useContext, useEffect, useRef } from "react";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { use, useContext, useEffect, useRef } from "react";
 import ScanningIndicator from "./ScanningIndicator";
 import "react-native-get-random-values";
 import { Buffer } from "buffer";
@@ -18,7 +18,7 @@ export default function Conn() {
             setQrCodeText, selectedLanguage, localMicOn, setLocalMicOn } = useContext(Context);
 
     // Audio Transmission: Logic Here
-        const { socket, roomId, setRoomId, SERVER_URL } = useContext(ConnectionContext);
+        const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL } = useContext(ConnectionContext);
 
         useEffect(() => {
             // if(roomId) return;
@@ -169,6 +169,21 @@ export default function Conn() {
                 :
                 undefined
             }
+            {connectionState == "changeIP" ?
+                <>
+                    <Text style={styles.headerText}>
+                        {"Change your Server IP"}
+                    </Text>
+                    <TextInput multiline value={serverIP}
+                     style={styles.serverIPInput}
+                     onChangeText={text => 
+                        setSERVER_URL(text)
+                     }
+                     />
+                </>
+                :
+                undefined
+            }
             {connectionState != "initial" && connectionState == "sender" ?
                 <Text style={styles.headerText}>
                     {"You are the sender"}
@@ -220,6 +235,19 @@ const styles = StyleSheet.create({
         borderRadius: 20, 
         alignItems: "center",
         justifyContent: "flex-start" 
+    }, 
+    serverIPInput: {
+        marginTop: "5%", 
+        flex: 1, 
+        width: "80%", 
+        height: "10%",
+        borderColor: Colors.buttonText,
+        borderWidth: 1,
+        borderRadius: 5,
+        paddingHorizontal: 10,
+        color: Colors.buttonText,
+        fontSize: 18,
+        fontFamily: "Boldonse-Regular",
     }, 
     headerText: {
         color: Colors.buttonText,

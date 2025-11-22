@@ -53,3 +53,4 @@ app/project_babel/google-services.json
 
 app/server/node_modules
 app/server/package_lock.json
+app/server/.env

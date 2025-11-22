@@ -5,17 +5,26 @@ import PCM from 'react-native-pcm-player-lite'
 import Button from "../Button";
 import { Context } from "../../store/Context";
 import { ConnectionContext } from "../../store/ConnectionContext";
+import { Ionicons } from "@expo/vector-icons";
+import Colors from "../../colors/colors";
 
 export default function ConnectionButtons() {
     const { connectionState, setConnectionState, qrCodeText, setQrCodeText } = useContext(Context);
 
-   const { socket, roomId } = useContext(ConnectionContext);
+   const { socket, roomId, SERVER_URL } = useContext(ConnectionContext);
 
     async function nativeButtonPressHandler() {
         await setConnectionState("receiver");
     }
     async function foreignButtonPressHandler() {
         await setConnectionState("sender");
+    }
+    async function serverIpChangeHandler() {
+        console.log(`[update]SERVER_URL: ${SERVER_URL}`);
+        await setConnectionState("changeIP");
+    }
+    async function saveHandler() {
+        await setConnectionState("initial");
     }
     async function cancelHandler() {
         await setConnectionState("initial");
@@ -42,9 +51,18 @@ export default function ConnectionButtons() {
             {connectionState == "initial" ? 
                 <>
                 <Button onPressHandler={nativeButtonPressHandler}>Native</Button>
+                <Button onPressHandler={serverIpChangeHandler}>
+                    {<Ionicons name="link" size={24} color={Colors.buttonText} />}
+                </Button>
                 <Button onPressHandler={foreignButtonPressHandler}>Foreign</Button>
                 </> : undefined
             }
+            {connectionState == "changeIP" ? 
+                <Button 
+                 onPressHandler={saveHandler}>
+                    {"Save"}
+                </Button>
+                : undefined}
             {connectionState == "receiver" || connectionState == "sender" ? 
                 <Button 
                  onPressHandler={cancelHandler}>
