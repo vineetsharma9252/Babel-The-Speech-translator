@@ -20,7 +20,7 @@ const rooms = [
     // ]}
 ];
 
-// socketId -> { ws: WebSocket, open: boolean, currentLanguage: string }
+// socketId -> { ws: WebSocket, open: boolean, currentLanguage: string, bufferSize: Number }
 const openAISockets = new Map();
 
 const languageMap = new Map([
@@ -82,25 +82,32 @@ io.on('connection', (socket) => {
 
   socket.on("audioFromClient", data => {
     const languageToTranslateTo = data.selectedLanguage;
-    // console.log(data.data);
+    // console.log(languageToTranslateTo);
+    const openAI = openAISockets.get(socket.id);
+    if(!openAI) return;
 
-    if(languageToTranslateTo != "og") {
-      const openAI = openAISockets.get(socket.id);
-      if(openAI && openAI.ws.readyState === WebSocket.OPEN) {
-        if(openAI.currentLanguage !== languageMap.get(languageToTranslateTo)) {
-          sendSessionUpdate(openAI.ws, languageMap.get(languageToTranslateTo));
-          openAI.currentLanguage = languageMap.get(languageToTranslateTo);
-        }
-
-        const audioBase64 = Buffer.from(data.data).toString("base64");
-        const audioAppendEvent = {
-          type: "input_audio_buffer.append", audio: audioBase64
-        };
-        openAI.ws.send(JSON.stringify(audioAppendEvent));
-      }
-    }
-    else if(languageToTranslateTo == "og")
+    if(languageToTranslateTo == "og") {
       socket.to(data.roomId).emit("audioFromServer", data.data);
+      return;
+    }
+      
+    if(openAI && openAI.ws.readyState === WebSocket.OPEN) {
+      if(openAI.currentLanguage !== languageMap.get(languageToTranslateTo)) {
+        sendSessionUpdate(openAI.ws, languageMap.get(languageToTranslateTo));
+        openAI.currentLanguage = languageMap.get(languageToTranslateTo);
+      }
+      const audioBase64 = Buffer.from(data.data).toString("base64");
+      const audioAppendEvent = {
+        type: "input_audio_buffer.append", audio: audioBase64
+      };
+      openAI.ws.send(JSON.stringify(audioAppendEvent));
+      openAI.ws.send(JSON.stringify({
+        type: "response.create", 
+        // response: {
+        //   commit: true
+        // }
+      }));
+    }
   });
 
   socket.on('disconnect', () => {
@@ -122,21 +129,44 @@ const setupOpenAIConnection = (socket) => {
   });
 
   ws.on("open", () => {
+    // sendSessionUpdate(ws, "Hindi");
     console.log(`OpenAI Connected for client ${socket.id}`);
     openAISockets.set(socket.id, {
-      ws: ws, open: true, currentLanguage: null
+      ws: ws, open: true, currentLanguage: null,
     });
+    sendSessionUpdate(ws, "English");
   });
+  ws.on("error", error => {
+    console.error(error);
+  })
 
   ws.on("message", (message) => {
     try { 
       const event = JSON.parse(message);
-      if(event.type === "response.audio.delta") {
-        const audioBuffer = Buffer.from(event.delta, "base64");
-        const room = rooms.find(r => r.clients.some(c => c.socket === socket.id));
-        if(room)
-            socket.to(room.roomId).emit("audioFromServer", audioBuffer);
+      if(event.type == "error") {
+        console.error("OpenAI api error: ", event.error);
+        return;
       }
+      // else if(event.type === "response.audio.done") {
+      //   const room = rooms.find(r => r.clients.some(c => c.socket === socket.id));
+      //   const openAI = openAISockets.get(socket.id);
+      //   if(room && openAI.outputBuffer.length > 0) {
+      //     socket.to(room.roomId).emit("audioFromServer", openAI.outputBuffer);
+      //     openAI.outputBuffer = Buffer.alloc(0);
+      //   }
+      // }
+      else if(event.type === "response.audio.delta") {
+        const room = rooms.find(r => r.clients.some(c => c.socket === socket.id));
+        // console.log(room)
+        const audioBuffer = Buffer.from(event.delta, "base64");
+        const openAI = openAISockets.get(socket.id);
+        // console.log(openAI)
+        socket.to(room.roomId).emit("audioFromServer", audioBuffer);
+      }
+      else if(event.type == "response.audio_transcript.done") 
+        console.log("[Transcript.done]: ", event.transcript);
+      else
+        console.log("[ws.message] event: ", event.type);
     } catch(error) {
       console.error("[openAI ws.message] error: ", error);
     }
@@ -152,19 +182,22 @@ const sendSessionUpdate = (ws, targetLanguage) => {
     type: "session.update", 
     session: {
       modalities: ["text", "audio"], 
-      instructions: 
-      `You are a real time voice translator.
-      The user is speaking.
-      Traanslate their speech directly into ${targetLanguage}.
-      Do not respond to their questions, only translate what they say.
-      Maintain the tone, geneder and emotion of the speech.
-      `, 
-      voice: "alloy", 
+      instructions: `
+        You are a simultaneous interpreter.
+        Continuously translate incoming audio into ${targetLanguage}.
+        Translate in real time as audio comes in.
+        **DO NOT wait for full sentences or complete thoughts.**
+        **DO NOT accumulate a buffer.**
+        DO NOT repeat original audio.
+        Only speak the translation audio output.
+        Do nothing more than an interpreter.
+      `,
+      voice: "alloy",  
       input_audio_format: "pcm16", 
       output_audio_format: "pcm16", 
       turn_detection: {
-        type: "server_vad", threshold: 0.5, 
-        prefix_padding_ms: 300, silence_duration_ms: 500
+        type: "server_vad", threshold: 0.2, 
+        prefix_padding_ms: 300, silence_duration_ms: 200
       }
     }
   };

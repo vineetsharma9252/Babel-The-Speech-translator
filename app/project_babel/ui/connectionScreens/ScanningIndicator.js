@@ -143,8 +143,9 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
     const ReceiverComponent = () => {    
         return (
         <View style={styles.secondaryRootContainer}>
-                {/* {hasPermission?.granted && <CameraView />} */}
+            <>
             <CameraView handleBarcodeScanned={handleBarcodeScanned}/>
+            </>
             <View style={styles.buttonContainer}>
                 <Button 
                     MarginTop={"10%"} 

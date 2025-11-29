@@ -51,7 +51,7 @@ export default function ConnectionButtons() {
             {connectionState == "initial" ? 
                 <>
                 <Button onPressHandler={nativeButtonPressHandler}>Native</Button>
-                <Button onPressHandler={serverIpChangeHandler}>
+                <Button onPressHandler={serverIpChangeHandler} Width={"10%"}>
                     {<Ionicons name="link" size={24} color={Colors.buttonText} />}
                 </Button>
                 <Button onPressHandler={foreignButtonPressHandler}>Foreign</Button>

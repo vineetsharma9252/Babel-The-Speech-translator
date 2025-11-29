@@ -1,5 +1,5 @@
 import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
-import { use, useContext, useEffect, useRef } from "react";
+import { use, useContext, useEffect, useRef, useState } from "react";
 import ScanningIndicator from "./ScanningIndicator";
 import "react-native-get-random-values";
 import { Buffer } from "buffer";
@@ -97,6 +97,8 @@ export default function Conn() {
                 return;
             }
     };
+
+    const buffer = useRef(Buffer.alloc(0));
     
     useEffect(() => {
         if(!socket) return;
@@ -104,8 +106,8 @@ export default function Conn() {
             sampleRate: 16000, 
             channels: 1,
             bitsPerSample: 16, 
-            audioSource: 1, 
-            bufferSize: 4096
+            audioSource: 7, 
+            bufferSize: 2048
         };
 
         try {
@@ -121,15 +123,18 @@ export default function Conn() {
 
         const dataListener = LiveAudioStream.on("data", data => {
             // below in data language = i need this lanaguage from sender 
+            const language = selectedLanguage.current;
+            // console.log(language);
             const binBuffer = Buffer.from(data, "base64");
-            socket.emit("audioFromClient", { data: binBuffer, roomId, language: selectedLanguage.current });
+            socket.emit("audioFromClient", { data: binBuffer, roomId, selectedLanguage: language });
         });        
 
-        return () => {
+        return async () => {
             try {
                 if(localMicOn)
                     LiveAudioStream.stop();
                 dataListener.remove();
+                await PCM.stop();
             } catch(error) {
                 console.warn("Error[LiveAudioStream.stop()]: ", error);
             }
@@ -140,9 +145,28 @@ export default function Conn() {
         if (!socket || connectionState !== "connected") return;
 
         const handleIncomingAudio = (data) => {
-            const data64 = Buffer.from(data).toString("base64");
-            PCM.enqueueBase64(data64);
+            try {
+                const base64 = Buffer.from(data).toString("base64");
+                PCM.enqueueBase64(base64);
+            } catch(error) {
+                console.error("[bufferEnqueue] error: ", error);
+            }
         };
+
+        // socket.on("audioFromServer", (data) => {
+        //     try {
+        //     const CHUNK_SIZE = 4096
+        //     buffer.current = Buffer.concat([buffer.current, Buffer.from(data)]);
+        //     while(buffer.current.length >= CHUNK_SIZE) {
+        //         const chunk = buffer.current.slice(0, CHUNK_SIZE);
+        //         const base64 = Buffer.from(chunk).toString("base64");
+        //         handleIncomingAudio(base64);
+        //         buffer.current = buffer.current.slice(CHUNK_SIZE);
+        //     }
+        //     } catch(error) {
+        //         console.error("audioFromServer[error]: ", error);
+        //     }
+        // });
 
         socket.on("audioFromServer", handleIncomingAudio);
 
@@ -174,7 +198,7 @@ export default function Conn() {
                     <Text style={styles.headerText}>
                         {"Change your Server IP"}
                     </Text>
-                    <TextInput multiline value={serverIP}
+                    <TextInput multiline value={SERVER_URL}
                      style={styles.serverIPInput}
                      onChangeText={text => 
                         setSERVER_URL(text)
@@ -238,9 +262,9 @@ const styles = StyleSheet.create({
     }, 
     serverIPInput: {
         marginTop: "5%", 
-        flex: 1, 
+        // flex: 1, 
         width: "80%", 
-        height: "10%",
+        height: "15%",
         borderColor: Colors.buttonText,
         borderWidth: 1,
         borderRadius: 5,
