@@ -1,0 +1,20 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Server for Voice Translation ",
+  "main": "server.js",
+  "scripts": {
+    "test": "npm start ",
+    "start": "node server.js"
+  },
+  "author": "Vineet Sharma",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/speech": "^7.2.1",
+    "@google-cloud/text-to-speech": "^6.4.0",
+    "@google-cloud/translate": "^9.3.0",
+    "express": "^5.1.0",
+    "mediasoup": "^3.19.12",
+    "socket.io": "^4.8.1"
+  }
+}
