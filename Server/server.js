@@ -4,7 +4,6 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const { OpenAI } = require('openai');
-require('dotenv').config();
 
 class TranslationServer {
   constructor() {
@@ -14,7 +13,7 @@ class TranslationServer {
 
     // Initialize OpenAI (use environment variable)
     this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || "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"
+      apiKey: "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"
     });
 
     console.log('✅ OpenAI initialized');
@@ -611,10 +610,6 @@ class TranslationServer {
 // HOST=0.0.0.0
 
 // Check for OpenAI API key
-if (!process.env.OPENAI_API_KEY) {
-  console.warn('⚠️  OPENAI_API_KEY not set in environment variables');
-  console.warn('📝 Create a .env file with: OPENAI_API_KEY=your_key_here');
-}
 
 // Create and start server
 const server = new TranslationServer();
