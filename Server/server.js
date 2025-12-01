@@ -3,352 +3,275 @@ const mediasoup = require('mediasoup');
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const { networkInterfaces } = require('os');
-const { SpeechClient } = require('@google-cloud/speech');
-const { TranslationServiceClient } = require('@google-cloud/translate');
-const textToSpeech = require('@google-cloud/text-to-speech');
+const { OpenAI } = require('openai');
+const ffmpeg = require('fluent-ffmpeg');
+const { PassThrough } = require('stream');
+const { Readable } = require('stream');
 
 class TranslationServer {
   constructor() {
     this.worker = null;
     this.rooms = new Map();
-    this.roomPasswords = new Map();
-    this.serverIp = this.getLocalIp();
+    this.audioBuffers = new Map(); // socketId -> audio buffer
 
-    // Initialize Google Cloud clients
-    this.initializeGoogleClients();
+    // Initialize OpenAI
+    this.openai = new OpenAI({
+      apiKey: "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"
+    });
 
+    console.log('✅ OpenAI initialized');
     this.setupServer();
-  }
-
-  getLocalIp() {
-    const nets = networkInterfaces();
-    for (const name of Object.keys(nets)) {
-      for (const net of nets[name]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          return net.address;
-        }
-      }
-    }
-    return '127.0.0.1';
-  }
-
-  initializeGoogleClients() {
-    try {
-      this.speechClient = new SpeechClient();
-      this.translationClient = new TranslationServiceClient();
-      this.ttsClient = new textToSpeech.TextToSpeechClient();
-      console.log('✅ Google Cloud clients initialized');
-    } catch (error) {
-      console.log('⚠️ Google Cloud clients not available');
-    }
   }
 
   async setupServer() {
     try {
-      // Create mediasoup worker
+      // Create Mediasoup worker
       this.worker = await mediasoup.createWorker({
         logLevel: 'warn',
-        rtcMinPort: 40000,
-        rtcMaxPort: 49999,
+        rtcMinPort: 10000,
+        rtcMaxPort: 20000,
       });
 
       console.log('✅ Mediasoup worker created');
 
-      // Setup Express and HTTP server
+      // Setup Express server
       this.app = express();
       this.server = http.createServer(this.app);
+
+      // Setup Socket.io
       this.io = socketIo(this.server, {
         cors: {
           origin: "*",
-          methods: ["GET", "POST"]
-        }
+          methods: ["GET", "POST"],
+        },
+        transports: ['websocket', 'polling']
       });
+
+      // Middleware
+      this.app.use(express.json());
+      this.app.use(express.static('public'));
 
       // Routes
-      this.app.use(express.json());
-      this.app.get('/health', (req, res) => {
-        res.json({
-          status: 'ok',
-          ip: this.serverIp,
-          rooms: this.rooms.size,
-          totalUsers: Array.from(this.rooms.values()).reduce((acc, room) => acc + room.users.size, 0)
-        });
-      });
+      this.setupRoutes();
 
-      this.app.get('/', (req, res) => {
-        res.send(`
-          <html>
-            <head>
-              <title>Translation Server</title>
-              <style>
-                body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
-                .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                h1 { color: #333; text-align: center; }
-                .info { background: #e8f4fd; padding: 15px; border-radius: 5px; margin: 20px 0; }
-                .ip-address { font-size: 24px; font-weight: bold; color: #2196F3; text-align: center; }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <h1>🎥 Translation Server</h1>
-                <div class="info">
-                  <p>Server is running! Use this IP in your app:</p>
-                  <div class="ip-address">${this.serverIp}:3000</div>
-                </div>
-                <p><strong>Active Rooms:</strong> ${this.rooms.size}</p>
-                <p><strong>Total Users:</strong> ${Array.from(this.rooms.values()).reduce((acc, room) => acc + room.users.size, 0)}</p>
-              </div>
-            </body>
-          </html>
-        `);
-      });
-
-      // Setup socket handlers
+      // Socket handlers
       this.setupSocketHandlers();
 
       // Start server
-      this.server.listen(3000, '0.0.0.0', () => {
-        console.log('🚀 Translation Server running on port 3000');
-        console.log(`📍 Local: http://localhost:3000`);
-        console.log(`📱 Network: http://${this.serverIp}:3000`);
-        console.log('🎯 Ready for video calls with real-time translation!');
+      const PORT = process.env.PORT || 3000;
+      this.server.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`🌐 Access at: http://localhost:${PORT}`);
+        console.log('🎯 Ready with OpenAI Whisper translation!');
       });
 
     } catch (error) {
       console.error('❌ Server setup failed:', error);
+      process.exit(1);
     }
+  }
+
+  setupRoutes() {
+    // Health check
+    this.app.get('/health', (req, res) => {
+      res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        rooms: this.rooms.size,
+        openai: !!process.env.OPENAI_API_KEY
+      });
+    });
+
+    // Home page
+    this.app.get('/', (req, res) => {
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Translation Server</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            h1 { color: #333; }
+            .status { color: green; font-weight: bold; }
+            .info { background: #f0f0f0; padding: 20px; border-radius: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>🎥 Real-time Translation Server</h1>
+            <div class="info">
+              <p class="status">✅ Server is running with OpenAI Whisper!</p>
+              <p>Active Rooms: ${this.rooms.size}</p>
+              <p>Total Users: ${Array.from(this.rooms.values()).reduce((acc, room) => acc + room.users.size, 0)}</p>
+              <p>Translation: ${process.env.OPENAI_API_KEY ? 'Enabled' : 'Disabled'}</p>
+              <p><a href="/health">Health Check</a></p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    });
   }
 
   setupSocketHandlers() {
     this.io.on('connection', (socket) => {
       console.log(`📱 User connected: ${socket.id}`);
 
-      // Send server info
-      socket.emit('server-ready', {
-        ip: this.serverIp,
-        message: 'Connected to translation server'
+      // Send welcome message
+      socket.emit('connected', {
+        socketId: socket.id,
+        message: 'Connected to translation server',
+        translationEnabled: !!process.env.OPENAI_API_KEY
       });
 
-      // Create a new room
-      socket.on('create-room', async (data, callback) => {
-        const { roomId, password, userLang = 'en-US', targetLang = 'es-ES' } = data;
-
-        console.log(`🏠 Creating room: ${roomId}`);
-
-        if (this.rooms.has(roomId)) {
-          callback({ error: 'Room already exists' });
-          return;
-        }
-
-        try {
-          // Create new room
-          const room = await this.createNewRoom(roomId);
-
-          // Store password if provided
-          if (password && password.trim() !== '') {
-            this.roomPasswords.set(roomId, password.trim());
-          }
-
-          // Add creator to room
-          await this.addUserToRoom(socket, room, userLang, targetLang, true);
-
-          console.log(`✅ Room created: ${roomId} by ${socket.id}`);
-          callback({
-            success: true,
-            roomId,
-            message: 'Room created successfully'
-          });
-
-        } catch (error) {
-          console.error('Error creating room:', error);
-          callback({ error: 'Failed to create room' });
-        }
+      // Create or join room
+      socket.on('create-or-join', async (data, callback) => {
+        await this.handleCreateOrJoin(socket, data, callback);
       });
 
-      // Join an existing room
-      socket.on('join-room', async (data, callback) => {
-        const { roomId, password, userLang = 'en-US', targetLang = 'es-ES' } = data;
-
-        console.log(`🎯 Joining room: ${roomId}`);
-
-        const room = this.rooms.get(roomId);
-        if (!room) {
-          callback({ error: 'Room does not exist' });
-          return;
-        }
-
-        // Check if room is full
-        if (room.users.size >= 2) {
-          callback({ error: 'Room is full (max 2 users)' });
-          return;
-        }
-
-        // Check password
-        const roomPassword = this.roomPasswords.get(roomId);
-        if (roomPassword && roomPassword !== password) {
-          callback({ error: 'Invalid password' });
-          return;
-        }
-
-        try {
-          // Add user to room
-          await this.addUserToRoom(socket, room, userLang, targetLang, false);
-
-          callback({
-            success: true,
-            userCount: room.users.size,
-            message: 'Joined room successfully'
-          });
-
-        } catch (error) {
-          console.error('Error joining room:', error);
-          callback({ error: 'Failed to join room' });
-        }
+      // Get router capabilities
+      socket.on('getRouterRtpCapabilities', (data, callback) => {
+        this.handleGetRouterCapabilities(socket, data, callback);
       });
 
-      // List available rooms
-      socket.on('list-rooms', (callback) => {
-        const roomList = Array.from(this.rooms.entries()).map(([roomId, room]) => ({
-          roomId,
-          userCount: room.users.size,
-          hasPassword: this.roomPasswords.has(roomId),
-          createdAt: room.createdAt
-        }));
-
-        callback({ rooms: roomList });
-      });
-
-      // Mediasoup transport creation
-      socket.on('create-transport', async (data, callback) => {
+      // Create WebRTC transport
+      socket.on('createTransport', async (data, callback) => {
         await this.handleCreateTransport(socket, data, callback);
       });
 
-      socket.on('connect-transport', async (data, callback) => {
+      // Connect transport
+      socket.on('connectTransport', async (data, callback) => {
         await this.handleConnectTransport(socket, data, callback);
       });
 
+      // Produce media
       socket.on('produce', async (data, callback) => {
         await this.handleProduce(socket, data, callback);
       });
 
+      // Consume media
       socket.on('consume', async (data, callback) => {
         await this.handleConsume(socket, data, callback);
       });
 
-      // WebRTC signaling
-      socket.on('webrtc-offer', (data) => {
-        socket.to(data.roomId).emit('webrtc-offer', {
-          offer: data.offer,
-          from: socket.id
-        });
+      // Send audio data for translation
+      socket.on('audioData', (data) => {
+        this.handleAudioData(socket, data);
       });
 
-      socket.on('webrtc-answer', (data) => {
-        socket.to(data.targetUserId).emit('webrtc-answer', {
-          answer: data.answer,
-          from: socket.id
-        });
+      // Request translation
+      socket.on('translate', async (data, callback) => {
+        await this.handleTranslation(socket, data, callback);
       });
 
-      socket.on('ice-candidate', (data) => {
-        socket.to(data.targetUserId).emit('ice-candidate', {
-          candidate: data.candidate,
-          from: socket.id
-        });
-      });
-
-      // Translation control
-      socket.on('start-translation', () => {
-        this.startTranslationForUser(socket);
-      });
-
+      // Disconnect
       socket.on('disconnect', () => {
         this.handleDisconnect(socket);
       });
     });
   }
 
-  async createNewRoom(roomId) {
-    const room = {
-      id: roomId,
-      router: await this.worker.createRouter({
-        mediaCodecs: [
-          {
-            kind: 'audio',
-            mimeType: 'audio/opus',
-            clockRate: 48000,
-            channels: 2
-          },
-          {
-            kind: 'video',
-            mimeType: 'video/VP8',
-            clockRate: 90000
-          }
-        ]
-      }),
-      users: new Map(),
-      userLanguages: new Map(),
-      createdAt: new Date(),
-      createdBy: null
-    };
+  async handleCreateOrJoin(socket, data, callback) {
+    const { roomId, userLang = 'en', targetLang = 'es' } = data;
 
-    this.rooms.set(roomId, room);
-    return room;
-  }
+    console.log(`🎯 ${socket.id} joining room: ${roomId} (${userLang} → ${targetLang})`);
 
-  async addUserToRoom(socket, room, userLang, targetLang, isCreator = false) {
-    // Add user to room
-    room.users.set(socket.id, {
-      socket,
-      transports: new Map(),
-      producers: new Map(),
-      consumers: new Map(),
-      audioProcessor: null
-    });
+    try {
+      let room = this.rooms.get(roomId);
 
-    room.userLanguages.set(socket.id, {
-      speak: userLang,
-      listen: targetLang
-    });
+      if (!room) {
+        // Create new room
+        room = {
+          id: roomId,
+          router: await this.worker.createRouter({
+            mediaCodecs: [
+              {
+                kind: 'audio',
+                mimeType: 'audio/opus',
+                clockRate: 48000,
+                channels: 2,
+              },
+              {
+                kind: 'video',
+                mimeType: 'video/VP8',
+                clockRate: 90000,
+              }
+            ]
+          }),
+          users: new Map(),
+          transports: new Map(),
+          producers: new Map(),
+          consumers: new Map(),
+          userLanguages: new Map()
+        };
+        this.rooms.set(roomId, room);
+        console.log(`✅ Room created: ${roomId}`);
+      }
 
-    // Set creator if this is the room creator
-    if (isCreator) {
-      room.createdBy = socket.id;
-    }
+      // Check if room is full (max 2 users)
+      if (room.users.size >= 2) {
+        callback({ error: 'Room is full (max 2 users)' });
+        return;
+      }
 
-    socket.join(room.id);
-
-    const userCount = room.users.size;
-    console.log(`👤 ${socket.id} joined room ${room.id}. Users: ${userCount}/2`);
-
-    // Send room info to user
-    socket.emit('room-joined', {
-      roomId: room.id,
-      userCount,
-      isCreator,
-      rtpCapabilities: room.router.rtpCapabilities
-    });
-
-    // Notify other users in room
-    if (userCount > 1) {
-      socket.to(room.id).emit('user-joined', {
-        userId: socket.id,
-        userCount,
-        userLang,
-        targetLang
+      // Add user to room
+      room.users.set(socket.id, socket);
+      room.userLanguages.set(socket.id, {
+        speak: userLang,
+        listen: targetLang
       });
 
-      // Start call when 2 users are present
-      socket.emit('start-call');
-      socket.to(room.id).emit('start-call');
+      socket.join(roomId);
+      socket.roomId = roomId;
 
-      console.log(`🎉 Room ${room.id} has 2 users - starting call!`);
+      const userCount = room.users.size;
+      console.log(`👥 Room ${roomId} now has ${userCount}/2 users`);
+
+      // Send success response
+      callback({
+        success: true,
+        roomId,
+        userCount,
+        isCreator: userCount === 1,
+        routerRtpCapabilities: room.router.rtpCapabilities
+      });
+
+      // Notify other users
+      if (userCount > 1) {
+        socket.to(roomId).emit('userJoined', {
+          userId: socket.id,
+          userCount,
+          userLang,
+          targetLang
+        });
+
+        // Notify both users to start
+        socket.emit('startCall');
+        socket.to(roomId).emit('startCall');
+
+        console.log(`🎉 Call started in room ${roomId}!`);
+      }
+
+    } catch (error) {
+      console.error('Error creating/joining room:', error);
+      callback({ error: 'Failed to join room' });
+    }
+  }
+
+  handleGetRouterCapabilities(socket, data, callback) {
+    const { roomId } = data;
+    const room = this.rooms.get(roomId);
+
+    if (room) {
+      callback({ rtpCapabilities: room.router.rtpCapabilities });
+    } else {
+      callback({ error: 'Room not found' });
     }
   }
 
   async handleCreateTransport(socket, data, callback) {
-    const { roomId, direction } = data;
+    const { roomId, direction } = data; // 'send' or 'recv'
     const room = this.rooms.get(roomId);
 
     if (!room) {
@@ -358,19 +281,17 @@ class TranslationServer {
 
     try {
       const transport = await room.router.createWebRtcTransport({
-        listenIps: [{
-          ip: '0.0.0.0',
-          announcedIp: this.serverIp
-        }],
+        listenIps: [{ ip: '0.0.0.0', announcedIp: null }],
         enableUdp: true,
         enableTcp: true,
-        preferUdp: true
+        preferUdp: true,
+        initialAvailableOutgoingBitrate: 1000000
       });
 
-      const userData = room.users.get(socket.id);
-      if (userData) {
-        userData.transports.set(direction, transport);
+      if (!room.transports.has(socket.id)) {
+        room.transports.set(socket.id, new Map());
       }
+      room.transports.get(socket.id).set(direction, transport);
 
       callback({
         id: transport.id,
@@ -395,15 +316,15 @@ class TranslationServer {
     }
 
     try {
-      const userData = room.users.get(socket.id);
-      if (!userData) {
-        callback({ error: 'User not found' });
+      const userTransports = room.transports.get(socket.id);
+      if (!userTransports) {
+        callback({ error: 'User transports not found' });
         return;
       }
 
-      // Find transport
+      // Find the transport
       let transport;
-      for (const [dir, t] of userData.transports) {
+      for (const [direction, t] of userTransports) {
         if (t.id === transportId) {
           transport = t;
           break;
@@ -434,15 +355,15 @@ class TranslationServer {
     }
 
     try {
-      const userData = room.users.get(socket.id);
-      if (!userData) {
-        callback({ error: 'User not found' });
+      const userTransports = room.transports.get(socket.id);
+      if (!userTransports) {
+        callback({ error: 'User transports not found' });
         return;
       }
 
-      // Find transport
+      // Find the transport
       let transport;
-      for (const [dir, t] of userData.transports) {
+      for (const [direction, t] of userTransports) {
         if (t.id === transportId) {
           transport = t;
           break;
@@ -459,17 +380,20 @@ class TranslationServer {
         rtpParameters
       });
 
-      userData.producers.set(producer.id, producer);
+      if (!room.producers.has(socket.id)) {
+        room.producers.set(socket.id, new Map());
+      }
+      room.producers.get(socket.id).set(producer.id, producer);
 
-      console.log(`🎯 ${socket.id} produced ${kind} stream: ${producer.id}`);
+      console.log(`🎯 ${socket.id} produced ${kind}: ${producer.id}`);
 
-      // Start speech recognition if it's audio
-      if (kind === 'audio' && this.speechClient) {
-        this.startSpeechRecognition(socket, room, producer);
+      // Setup audio processing for audio producers
+      if (kind === 'audio') {
+        this.setupAudioProcessing(socket, producer);
       }
 
-      // Notify other users about new producer
-      socket.to(roomId).emit('new-producer', {
+      // Notify other users in the room
+      socket.to(roomId).emit('newProducer', {
         producerId: producer.id,
         kind: producer.kind,
         userId: socket.id
@@ -493,14 +417,13 @@ class TranslationServer {
     }
 
     try {
-      const userData = room.users.get(socket.id);
-      if (!userData) {
-        callback({ error: 'User not found' });
+      const userTransports = room.transports.get(socket.id);
+      if (!userTransports) {
+        callback({ error: 'User transports not found' });
         return;
       }
 
-      // Find recv transport
-      const recvTransport = userData.transports.get('recv');
+      const recvTransport = userTransports.get('recv');
       if (!recvTransport) {
         callback({ error: 'Receive transport not found' });
         return;
@@ -508,7 +431,7 @@ class TranslationServer {
 
       // Check if can consume
       if (!room.router.canConsume({ producerId, rtpCapabilities })) {
-        callback({ error: 'Cannot consume this producer' });
+        callback({ error: 'Cannot consume' });
         return;
       }
 
@@ -518,9 +441,12 @@ class TranslationServer {
         paused: false
       });
 
-      userData.consumers.set(consumer.id, consumer);
+      if (!room.consumers.has(socket.id)) {
+        room.consumers.set(socket.id, new Map());
+      }
+      room.consumers.get(socket.id).set(consumer.id, consumer);
 
-      console.log(`🎯 ${socket.id} consuming ${consumer.kind} from ${producerId}`);
+      console.log(`🎯 ${socket.id} consuming ${consumer.kind}: ${consumer.id}`);
 
       callback({
         id: consumer.id,
@@ -535,157 +461,279 @@ class TranslationServer {
     }
   }
 
-  async startSpeechRecognition(socket, room, audioProducer) {
-    if (!this.speechClient) return;
+  setupAudioProcessing(socket, audioProducer) {
+    console.log(`🎤 Setting up audio processing for ${socket.id}`);
 
-    try {
-      console.log(`🎤 Starting speech recognition for ${socket.id}`);
+    // Create audio buffer for this user
+    this.audioBuffers.set(socket.id, {
+      buffer: [],
+      lastTranslationTime: Date.now(),
+      isProcessing: false
+    });
 
-      const userLang = room.userLanguages.get(socket.id);
-      if (!userLang) return;
-
-      const recognitionStream = this.speechClient
-        .streamingRecognize({
-          config: {
-            encoding: 'WEBM_OPUS',
-            sampleRateHertz: 48000,
-            languageCode: userLang.speak,
-          },
-          interimResults: true,
-        })
-        .on('data', (data) => {
-          if (data.results[0] && data.results[0].alternatives[0]) {
-            const transcript = data.results[0].alternatives[0].transcript;
-            const isFinal = data.results[0].isFinal;
-
-            console.log(`🗣️ [${socket.id}] ${transcript}`);
-
-            // Send transcript to client
-            socket.emit('speech-transcript', {
-              transcript,
-              isFinal,
-              language: userLang.speak
-            });
-
-            // Start translation for final transcripts
-            if (isFinal && transcript.trim().length > 0) {
-              this.processTranslation(socket, room, transcript);
-            }
-          }
-        })
-        .on('error', (error) => {
-          console.error('Speech recognition error:', error);
-        });
-
-      // Store processor
-      const userData = room.users.get(socket.id);
-      if (userData) {
-        userData.audioProcessor = recognitionStream;
+    // Periodically process audio for translation
+    const translationInterval = setInterval(async () => {
+      const audioData = this.audioBuffers.get(socket.id);
+      if (!audioData || audioData.buffer.length === 0 || audioData.isProcessing) {
+        return;
       }
 
-    } catch (error) {
-      console.error('Error starting speech recognition:', error);
+      // Process every 3 seconds or when buffer is large enough
+      if (Date.now() - audioData.lastTranslationTime > 3000 && audioData.buffer.length > 100) {
+        audioData.isProcessing = true;
+
+        try {
+          // Convert buffer to WAV format for Whisper
+          const audioBuffer = Buffer.concat(audioData.buffer);
+
+          // Send for translation
+          const room = this.rooms.get(socket.roomId);
+          if (room) {
+            const userLang = room.userLanguages.get(socket.id);
+            if (userLang) {
+              await this.transcribeAndTranslate(socket, audioBuffer, userLang.speak, room);
+            }
+          }
+
+          // Clear buffer
+          audioData.buffer = [];
+          audioData.lastTranslationTime = Date.now();
+
+        } catch (error) {
+          console.error('Audio processing error:', error);
+        } finally {
+          audioData.isProcessing = false;
+        }
+      }
+    }, 1000);
+
+    // Clean up interval on disconnect
+    socket.on('disconnect', () => {
+      clearInterval(translationInterval);
+      this.audioBuffers.delete(socket.id);
+    });
+  }
+
+  handleAudioData(socket, data) {
+    const { audioChunk } = data;
+    const audioData = this.audioBuffers.get(socket.id);
+
+    if (audioData && audioChunk) {
+      // Convert base64 to buffer
+      const buffer = Buffer.from(audioChunk, 'base64');
+      audioData.buffer.push(buffer);
     }
   }
 
-  async processTranslation(socket, room, originalText) {
-    if (!this.translationClient) return;
-
+  async transcribeAndTranslate(socket, audioBuffer, sourceLanguage, room) {
     try {
-      const speakerLang = room.userLanguages.get(socket.id);
-      if (!speakerLang) return;
+      console.log(`🎤 Transcribing audio from ${socket.id}...`);
 
-      console.log(`🌐 Translating: "${originalText}"`);
+      // Convert audio buffer to a stream
+      const audioStream = new PassThrough();
+      audioStream.end(audioBuffer);
 
-      // Send original text to speaker
-      socket.emit('original-speech', {
-        text: originalText,
-        language: speakerLang.speak
+      // Transcribe using OpenAI Whisper
+      const transcription = await this.openai.audio.transcriptions.create({
+        file: audioStream,
+        model: "whisper-1",
+        language: sourceLanguage,
+        response_format: "text"
+      });
+
+      const transcribedText = transcription.text.trim();
+      if (!transcribedText) return;
+
+      console.log(`🗣️ [${socket.id}] "${transcribedText}"`);
+
+      // Send original transcription to speaker
+      socket.emit('transcription', {
+        text: transcribedText,
+        language: sourceLanguage,
+        isOriginal: true
       });
 
       // Translate for each listener
-      for (const [listenerId, userData] of room.users.entries()) {
+      for (const [listenerId, listenerSocket] of room.users.entries()) {
         if (listenerId !== socket.id) {
           const listenerLang = room.userLanguages.get(listenerId);
 
-          try {
-            const [translationResponse] = await this.translationClient.translateText({
-              contents: [originalText],
-              sourceLanguageCode: speakerLang.speak.split('-')[0],
-              targetLanguageCode: listenerLang.listen.split('-')[0],
-              parent: 'projects/your-project-id'
+          if (listenerLang && listenerLang.listen !== sourceLanguage) {
+            await this.translateText(socket, listenerSocket, transcribedText, sourceLanguage, listenerLang.listen);
+          } else {
+            // Same language, just forward the transcription
+            listenerSocket.emit('transcription', {
+              text: transcribedText,
+              language: sourceLanguage,
+              isOriginal: false
             });
-
-            const translatedText = translationResponse.translations[0].translatedText;
-
-            console.log(`✅ Translated: "${translatedText}"`);
-
-            // Send translated text to listener
-            userData.socket.emit('translated-text', {
-              originalText,
-              translatedText,
-              fromLanguage: speakerLang.speak,
-              toLanguage: listenerLang.listen
-            });
-
-          } catch (translationError) {
-            console.error('Translation error:', translationError);
           }
         }
       }
 
     } catch (error) {
-      console.error('Error in translation process:', error);
+      console.error('Transcription error:', error);
     }
   }
 
-  startTranslationForUser(socket) {
-    console.log(`🎯 Starting translation for ${socket.id}`);
+  async translateText(speakerSocket, listenerSocket, text, sourceLang, targetLang) {
+    try {
+      console.log(`🌐 Translating "${text}" from ${sourceLang} to ${targetLang}`);
+
+      const translation = await this.openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `You are a translator. Translate the following text from ${sourceLang} to ${targetLang}. Only return the translation.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        max_tokens: 100
+      });
+
+      const translatedText = translation.choices[0].message.content.trim();
+
+      console.log(`✅ Translated: "${translatedText}"`);
+
+      // Send translation to listener
+      listenerSocket.emit('translation', {
+        originalText: text,
+        translatedText: translatedText,
+        fromLanguage: sourceLang,
+        toLanguage: targetLang
+      });
+
+      // Also send to speaker for display
+      speakerSocket.emit('translationSent', {
+        originalText: text,
+        translatedText: translatedText,
+        toLanguage: targetLang
+      });
+
+    } catch (error) {
+      console.error('Translation error:', error);
+    }
+  }
+
+  async handleTranslation(socket, data, callback) {
+    const { text, targetLanguage } = data;
+
+    try {
+      const room = this.rooms.get(socket.roomId);
+      if (!room) {
+        callback({ error: 'Not in a room' });
+        return;
+      }
+
+      const userLang = room.userLanguages.get(socket.id);
+      if (!userLang) {
+        callback({ error: 'Language not set' });
+        return;
+      }
+
+      const translation = await this.openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `Translate from ${userLang.speak} to ${targetLanguage}. Only return the translation.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        max_tokens: 100
+      });
+
+      const translatedText = translation.choices[0].message.content.trim();
+
+      callback({
+        success: true,
+        original: text,
+        translation: translatedText
+      });
+
+      // Send to other user in room
+      for (const [userId, userSocket] of room.users.entries()) {
+        if (userId !== socket.id) {
+          userSocket.emit('manualTranslation', {
+            originalText: text,
+            translatedText: translatedText,
+            fromLanguage: userLang.speak,
+            toLanguage: targetLanguage
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('Manual translation error:', error);
+      callback({ error: 'Translation failed' });
+    }
   }
 
   handleDisconnect(socket) {
     console.log(`❌ User disconnected: ${socket.id}`);
 
-    // Cleanup user from all rooms
-    for (const [roomId, room] of this.rooms.entries()) {
-      if (room.users.has(socket.id)) {
-        const userData = room.users.get(socket.id);
+    const roomId = socket.roomId;
+    if (!roomId) return;
 
-        // Cleanup resources
-        if (userData.audioProcessor) {
-          userData.audioProcessor.end();
-        }
+    const room = this.rooms.get(roomId);
+    if (!room) return;
 
-        userData.transports.forEach(transport => transport.close());
-        userData.producers.forEach(producer => producer.close());
-        userData.consumers.forEach(consumer => consumer.close());
+    // Cleanup user data
+    room.users.delete(socket.id);
+    room.userLanguages.delete(socket.id);
 
-        room.users.delete(socket.id);
-        room.userLanguages.delete(socket.id);
+    // Cleanup transports
+    const userTransports = room.transports.get(socket.id);
+    if (userTransports) {
+      userTransports.forEach(transport => transport.close());
+      room.transports.delete(socket.id);
+    }
 
-        // Notify other users
-        socket.to(roomId).emit('user-left', { userId: socket.id });
+    // Cleanup producers
+    const userProducers = room.producers.get(socket.id);
+    if (userProducers) {
+      userProducers.forEach(producer => producer.close());
+      room.producers.delete(socket.id);
+    }
 
-        console.log(`👤 Removed ${socket.id} from room ${roomId}`);
+    // Cleanup consumers
+    const userConsumers = room.consumers.get(socket.id);
+    if (userConsumers) {
+      userConsumers.forEach(consumer => consumer.close());
+      room.consumers.delete(socket.id);
+    }
 
-        // Cleanup empty rooms
-        if (room.users.size === 0) {
-          this.rooms.delete(roomId);
-          this.roomPasswords.delete(roomId);
-          console.log(`🗑️ Room ${roomId} deleted (empty)`);
-        }
-        break;
-      }
+    // Notify other users
+    socket.to(roomId).emit('userLeft', { userId: socket.id });
+
+    console.log(`👤 Removed ${socket.id} from room ${roomId}`);
+
+    // Cleanup empty rooms
+    if (room.users.size === 0) {
+      this.rooms.delete(roomId);
+      console.log(`🗑️ Room ${roomId} deleted`);
     }
   }
 }
 
-// Start server
+// Create and start server
 const server = new TranslationServer();
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down translation server...');
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down server...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Received SIGTERM, shutting down...');
   process.exit(0);
 });
 
