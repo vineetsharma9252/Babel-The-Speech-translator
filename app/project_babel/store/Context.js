@@ -13,7 +13,7 @@ export function ContextProvider({ children }) {
     const [connectionState, setConnectionState] = useState("initial");
     const [isFirstVisit, setIsFirstVisited] = useState(null);
     const [qrCodeText, setQrCodeText] = useState("");
-    const [localMicOn, setLocalMicOn] = useState(false);
+    // const [localMicOn, setLocalMicOn] = useState(false);
     const selectedLanguage = useRef("en");
 
 
@@ -49,8 +49,7 @@ export function ContextProvider({ children }) {
     return (
         <Context.Provider value = {
             { connectionState, setConnectionState, isFirstVisit, setIsFirstVisited, 
-            qrCodeText, localMicOn, setLocalMicOn, qrCodeText, setQrCodeText, 
-            selectedLanguage }
+            qrCodeText, qrCodeText, setQrCodeText, selectedLanguage }
             }>
             {children}
         </Context.Provider>

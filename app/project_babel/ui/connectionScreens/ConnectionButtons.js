@@ -11,7 +11,11 @@ import Colors from "../../colors/colors";
 export default function ConnectionButtons() {
     const { connectionState, setConnectionState, qrCodeText, setQrCodeText } = useContext(Context);
 
-   const { socket, roomId, SERVER_URL } = useContext(ConnectionContext);
+    const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL, 
+        localStream, setLocalStream, remoteStream, setRemoteStream, 
+        isMuted, setIsMuted, isVideoDisabled, setIsVideoDisabled, 
+        peerConnection
+    } = useContext(ConnectionContext);
 
     async function nativeButtonPressHandler() {
         await setConnectionState("receiver");
@@ -24,26 +28,26 @@ export default function ConnectionButtons() {
         await setConnectionState("changeIP");
     }
     async function saveHandler() {
-        await setConnectionState("initial");
+        setConnectionState("initial");
     }
     async function cancelHandler() {
-        await setConnectionState("initial");
-        if(connectionState === "connected") {
-            await PCM.stop();
+        // First, perform cleanup if a connection is active or in progress.
+        if (["connected", "connecting", "sender", "receiver"].includes(connectionState)) {
             const username = connectionState === "sender" ? "sender" : "receiver";
-            socket.emit("leaveRoom", ({ username, roomId }));
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (peerConnection.current) {
+                peerConnection.current.close();
+            }
+            setLocalStream(null);
+            setRemoteStream(null);
+            socket.emit("leaveRoom", { username, roomId });
         }
+        // Now, reset the state.
+        setConnectionState("initial");
         setQrCodeText("");
-
-
-        //     // manage some memory management logic here
-        // try {
-        //     if(ws.current && ws.current.readyState === WebSocket.OPEN) {
-        //         ws.current.close();
-        //     }
-        // } catch (error) {
-        //     console.log("Error stopping AudioRecord:", error);
-        // }
     }
 
     return (

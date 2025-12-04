@@ -10,6 +10,8 @@ import Colors from "../../colors/colors";
 import { Context } from "../../store/Context"; 
 import { ConnectionContext } from "../../store/ConnectionContext";
 import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from "react-native-vision-camera";
+import { RTCView } from "react-native-webrtc";
+import { RTCView, mediaDevices } from "react-native-webrtc";
 
 const CameraView = ({ handleBarcodeScanned }) => {
     const { hasPermission, requestPermission } = useCameraPermission();
@@ -42,12 +44,17 @@ const CameraView = ({ handleBarcodeScanned }) => {
     );
 };    
 
-export default function ScanningIndicator({ connectHandler, toggleMic }) {
+export default function ScanningIndicator({ connectHandler, toggleMic, toggleVideo }) {
 
     // states
     const { connectionState, setConnectionState, qrCodeText, setQrCodeText, 
             localMicOn, selectedLanguage } = useContext(Context);
-    const { roomId } = useContext(ConnectionContext);
+
+    const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL, 
+    const { socket, roomId, SERVER_URL, setSERVER_URL, 
+        localStream, setLocalStream, remoteStream, setRemoteStream, 
+        isMuted, setIsMuted, isVideoDisabled, setIsVideoDisabled
+    } = useContext(ConnectionContext);
         // custom state regarding scanned
     const [scanned, setScanned] = useState(false);
     // const [permission, requestPermission] = useCameraPermissions();
@@ -123,6 +130,8 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
                 <View style={styles.qrCodeView}>
                     {roomId && roomId !== "" ? 
                         <QRCode value={roomId}
+                    {roomId.current && roomId.current !== "" ? 
+                        <QRCode value={roomId.current}
                          size={250} 
                          backgroundColor="transparent"
                          quietZone={20} />
@@ -189,15 +198,39 @@ export default function ScanningIndicator({ connectHandler, toggleMic }) {
     const ConnectedComponent = () => {
         return (
             <View style={styles.secondaryRootContainer}>
+                {remoteStream ?
+                <RTCView 
+                    style={styles.remoteVideo}
+                    streamURL={remoteStream.toURL()}
+                    objectFit="cover"
+                    mirror={true}
+                />
+                 : null
+                }
                 <Button 
-                    onPressHandler={toggleMic} 
+                    onPressHandler={() => {
+                        toggleMic();
+                    }} 
                     Width={"45%"}
                     MarginTop={"5%"}
                     Color={Colors.backgroundColor}
                 >
-                    {localMicOn ? 
+                    {isMuted ? 
                         <Ionicons name="mic" size={24} color={Colors.buttonText} /> : 
                         <Ionicons name="mic-off" size={24} color={Colors.buttonText} />
+                    }
+                </Button>
+                <Button 
+                    onPressHandler={() => {
+                        toggleVideo();
+                    }} 
+                    Width={"45%"}
+                    MarginTop={"5%"}
+                    Color={Colors.backgroundColor}
+                >
+                    {isVideoDisabled ? 
+                        <Ionicons name="videocam" size={24} color={Colors.buttonText} /> : 
+                        <Ionicons name="videocam-off" size={24} color={Colors.buttonText} />
                     }
                 </Button>
             </View>
@@ -227,6 +260,12 @@ const styles = StyleSheet.create({
         justifyContent: "center", 
         alignItems: "center", 
     }, 
+    remoteVideo: {
+        width: "50%",
+        height: "50%", 
+        borderRadius: 5, 
+        backgroundColor: Colors.backgroundColor
+    },
     qrCodeView: {
         width: "75%", 
         height: "50%",
