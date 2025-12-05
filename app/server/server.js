@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on("offer", data => {
-    console.log("offer:" , data);
+    // console.log("offer:" , data);
     socket.to(data.roomId).emit("offer", {
       offer: data.offer, 
       senderId: socket.id
@@ -66,7 +66,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on("answer", data => {
-    console.log("answer:" , data);
+    // console.log("answer:" , data);
     socket.to(data.roomId).emit("answer", {
       answer: data.answer, 
       senderId: socket.id
@@ -74,7 +74,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on("ice-candidate", data => {
-    console.log("ice-candidate:" , data);
+    // console.log("ice-candidate:" , data);
     socket.to(data.roomId).emit("ice-candidate", {
       candidate: data.candidate, 
       senderId: socket.id

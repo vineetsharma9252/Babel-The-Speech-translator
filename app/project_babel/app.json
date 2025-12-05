@@ -34,6 +34,9 @@
         "android.permission.CHANGE_NETWORK_STATE"
       ],
       "manifest": {
+        "application": {
+          "hardwareAccelerated": true
+        }, 
         "usesFeatures": [
           {
             "name": "andriod.hardware.camera.autofocus",

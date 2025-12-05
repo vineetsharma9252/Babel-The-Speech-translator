@@ -3,6 +3,8 @@ import { StyleSheet, View, Text, Alert, TextInput } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import QRCode from "react-native-qrcode-svg";
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaskedView from "@react-native-masked-view/masked-view";
+import { RTCView } from "react-native-webrtc";
 // import { CameraView, useCameraPermissions } from "expo-camera";
 
 import Button from "../Button";
@@ -10,8 +12,6 @@ import Colors from "../../colors/colors";
 import { Context } from "../../store/Context"; 
 import { ConnectionContext } from "../../store/ConnectionContext";
 import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from "react-native-vision-camera";
-import { RTCView } from "react-native-webrtc";
-import { RTCView, mediaDevices } from "react-native-webrtc";
 
 const CameraView = ({ handleBarcodeScanned }) => {
     const { hasPermission, requestPermission } = useCameraPermission();
@@ -31,16 +31,26 @@ const CameraView = ({ handleBarcodeScanned }) => {
     });
 
     return (
-        <View style={styles.cameraContainer}>
-        <Camera
-            style={[styles.qrCameraView, 
-                { flex: 1, transform: [{ scale: 0.98 }] }]
+        <MaskedView
+            style={styles.maskedView}
+            maskElement={
+            <View style={styles.maskWrapper}>
+                <View style={styles.outerMask}>
+                <View style={styles.hole} />
+                </View>
+            </View>
             }
-            isActive={true}
-            codeScanner={codeScanner}
-            device={cameraDevice}
-        />
-        </View>
+        >
+            <Camera
+                style={styles.cameraInner}
+                isActive={true}
+                codeScanner={codeScanner}
+                device={cameraDevice}
+                useCamera2Api={true}
+                forceTextureView={true}
+                enablePerformanceMode={false}
+            />
+        </MaskedView>
     );
 };    
 
@@ -51,7 +61,6 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
             localMicOn, selectedLanguage } = useContext(Context);
 
     const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL, 
-    const { socket, roomId, SERVER_URL, setSERVER_URL, 
         localStream, setLocalStream, remoteStream, setRemoteStream, 
         isMuted, setIsMuted, isVideoDisabled, setIsVideoDisabled
     } = useContext(ConnectionContext);
@@ -130,8 +139,6 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
                 <View style={styles.qrCodeView}>
                     {roomId && roomId !== "" ? 
                         <QRCode value={roomId}
-                    {roomId.current && roomId.current !== "" ? 
-                        <QRCode value={roomId.current}
                          size={250} 
                          backgroundColor="transparent"
                          quietZone={20} />
@@ -152,9 +159,12 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
     const ReceiverComponent = () => {    
         return (
         <View style={styles.secondaryRootContainer}>
-            <>
-            <CameraView handleBarcodeScanned={handleBarcodeScanned}/>
-            </>
+            <CameraView
+            //  style={{
+            //     opac
+            //  }}
+            handleBarcodeScanned={handleBarcodeScanned}
+            />
             <View style={styles.buttonContainer}>
                 <Button 
                     MarginTop={"10%"} 
@@ -199,19 +209,35 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
         return (
             <View style={styles.secondaryRootContainer}>
                 {remoteStream ?
-                <RTCView 
-                    style={styles.remoteVideo}
+                <View style={styles.remoteVideo}>
+                <View style={{
+                    height: "5%", 
+                    alignItems: "center"
+                }}>
+                    <Text style={{
+                        color: Colors.buttonText, 
+                        fontFamily: "Boldonse-Regular", 
+                        fontSize: 8
+                    }}>{"Other User"}</Text>
+                </View>
+                <RTCView
+                    style={{
+                        flex: 1
+                    }} 
+                    key={remoteStream.toURL()}
                     streamURL={remoteStream.toURL()}
                     objectFit="cover"
-                    mirror={true}
+                    zOrder={1}
                 />
+                </View>
                  : null
                 }
+                <View style={styles.buttonContainer}>
                 <Button 
                     onPressHandler={() => {
                         toggleMic();
                     }} 
-                    Width={"45%"}
+                    Width={"20%"}
                     MarginTop={"5%"}
                     Color={Colors.backgroundColor}
                 >
@@ -224,7 +250,7 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
                     onPressHandler={() => {
                         toggleVideo();
                     }} 
-                    Width={"45%"}
+                    Width={"20%"}
                     MarginTop={"5%"}
                     Color={Colors.backgroundColor}
                 >
@@ -233,6 +259,7 @@ export default function ScanningIndicator({ connectHandler, toggleMic, toggleVid
                         <Ionicons name="videocam-off" size={24} color={Colors.buttonText} />
                     }
                 </Button>
+                </View>
             </View>
         );
     };
@@ -261,10 +288,13 @@ const styles = StyleSheet.create({
         alignItems: "center", 
     }, 
     remoteVideo: {
-        width: "50%",
-        height: "50%", 
-        borderRadius: 5, 
-        backgroundColor: Colors.backgroundColor
+        width: "80%",
+        height: "80%", 
+        borderRadius: 10, 
+        borderColor: Colors.backgroundColor, 
+        borderWidth: 2, 
+        backgroundColor: Colors.backgroundColor, 
+        overflow: "hidden"
     },
     qrCodeView: {
         width: "75%", 
@@ -297,18 +327,13 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         paddingHorizontal: 10,
     }, 
-    cameraContainer: {
-        justifyContent: "center",
-        alignItems: "center",
-        width: "90%",
-        height: "60%"
-    },
     buttonContainer: { 
         width: "100%",
         height: "auto", 
         flexDirection: "row", 
-        alignItems: "center", 
-        justifyContent: "space-between", 
+        alignItems: "center",
+        paddingHorizontal: "2%", 
+        justifyContent: "space-evenly", 
     }, 
     qrCodeText: {
         height: 40,
@@ -322,13 +347,37 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontFamily: "Regular",
     },
-    qrCameraView: {
-        width: "90%",
-        height: "100%",
-        marginTop: "5%",
-        borderRadius: 20,
-        overflow: "hidden"
+    maskedView: {
+        flex: 1,
+        flexDirection: 'row',
+        height: '100%',
     },
+    maskWrapper: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    },
+
+    outerMask: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "black",  
+    justifyContent: "center",
+    alignItems: "center",
+    },
+
+    hole: {
+    width: "80%",
+    aspectRatio: 1,
+    backgroundColor: "white",  
+    borderRadius: 20,
+    },
+
+    cameraInner: {
+        width: "80%",
+        height: "100%",
+    },    
     pickerContainer: {
         marginTop: "2%",
         height: "10%", 
