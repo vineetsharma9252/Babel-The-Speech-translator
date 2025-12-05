@@ -12,6 +12,7 @@ import Colors from "../../colors/colors";
 import { ConnectionContext } from "../../store/ConnectionContext";
 import { Context } from "../../store/Context";
 import Toast from "react-native-toast-message";
+import { useAudioRecorder } from "@siteed/expo-audio-studio";
 
 export default function Conn() {
 
@@ -19,10 +20,11 @@ export default function Conn() {
             setQrCodeText, selectedLanguage, localMicOn, setLocalMicOn } = useContext(Context);
 
     // Audio Transmission: Logic Here
-        const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL,
+        const { socket, roomId, setRoomId, SERVER_URL, setSERVER_URL, 
                 localStream, setLocalStream, remoteStream, setRemoteStream, 
-                isMuted, setIsMuted, isVideoDisabled, setIsVideoDisabled,
-                peerConnection
+                isMuted, setIsMuted, isVideoDisabled, setIsVideoDisabled, 
+                peerConnection, dataChannel, setDataChannel, 
+                messages, setMessages, isChannelOpen, setIsChannelOpen
             } = useContext(ConnectionContext);
 
         const iceCandidatesQueue = useRef([]);
@@ -58,27 +60,31 @@ export default function Conn() {
         
         const createPeerConnection = () => {
             const configuration = {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' } , 
-                    { urls: 'stun:stun2.l.google.com:19302' } , 
-                    { 
-                        urls: "turn:openrelay.metered.ca:80",
-                        username: "openrelayproject",
-                        credential: "openrelayproject"
-                    },
-                    { 
-                        urls: "turn:openrelay.metered.ca:443",
-                        username: "openrelayproject",
-                        credential: "openrelayproject"
-                    },
-                    { 
-                        urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                        username: "openrelayproject",
-                        credential: "openrelayproject"
-                    }
-                ]
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+                { urls: "stun:stun3.l.google.com:19302" },
+                { urls: "stun:stun4.l.google.com:19302" },
+
+                {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+                },
+                {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+                },
+                {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+                }
+            ]
             };
+
             const peerConnection = new RTCPeerConnection(configuration);
             peerConnection.addEventListener("icecandidate", event => {
                 if(event.candidate)
@@ -114,6 +120,58 @@ export default function Conn() {
 
             return peerConnection;
         };
+
+        useEffect(() => {
+            if(peerConnection.current)
+                setupDataChannel();
+        }, [peerConnection.current]);
+
+        const setupDataChannel = () => {
+            let channel;
+            try {
+                channel = peerConnection.current.createDataChannel('messages', {
+                ordered: true,
+                });
+            } catch(error) {
+                console.log("Data Channel could not be created");
+            }
+
+            if(channel) {
+            channel.addEventListener('open', () => {
+                console.log('Data channel opened');
+                setIsChannelOpen(true);
+            });
+
+            channel.addEventListener('close', () => {
+                console.log('Data channel closed');
+                setIsChannelOpen(false);
+            });
+
+            // channel.addEventListener('message', (event) => {
+            //     console.log("audio received: ", event.data);
+                
+            // });
+
+            setDataChannel(channel);
+
+            peerConnection.current.addEventListener('datachannel', (event) => {
+                const incomingChannel = event.channel;
+                
+                incomingChannel.addEventListener('message', (msgEvent) => {
+                    console.log("Data Channel audio: ", msgEvent);
+                    handleIncomingAudio(msgEvent.data);
+                });
+            });
+        }};      
+
+        const handleIncomingAudio = (data) => {
+            try {
+                const base64 = Buffer.from(data).toString("base64");
+                PCM.enqueueBase64(base64);
+            } catch(error) {
+                console.error("[bufferEnqueue] error: ", error);
+            }
+        };  
 
         const initializeCall = async () => {
             try {
@@ -226,6 +284,7 @@ export default function Conn() {
         const handleAnswer = async ({ answer }) => {
             try {
             await peerConnection.current.setRemoteDescription(answer);
+            await processIceQueue();
             setConnectionState("connected");
             } catch (error) {
             console.error('Error handling answer:', error);
@@ -285,7 +344,7 @@ export default function Conn() {
                     console.log(`Successfully connected room: ${data.roomId} as: ${data.username}`)
                     // setConnectionState("connected");
                     setLocalMicOn(true);
-                    Sound.setCategory("Playback");
+                    // Sound.setCategory("Playback");
                     console.debug("connected");
                 });
 
@@ -319,6 +378,9 @@ export default function Conn() {
             }
     };
     
+    const buffer = useRef(Buffer.alloc(0));
+    // const { isRecording, startRecording, stopRecording, recordingStatus } = useAudioRecorder();
+
     useEffect(() => {
         if(!socket) return;
         const options = {
@@ -326,11 +388,14 @@ export default function Conn() {
             channels: 1,
             bitsPerSample: 16, 
             audioSource: 7, 
-            bufferSize: 2048
+            bufferSize: 64
         };
 
         try {
+        if(connectionState == "sender" || connectionState == "receiver")
         LiveAudioStream.init(options);
+        if(connectionState == "connected")
+            LiveAudioStream.start();
 
         const startPCMPlayer = async () => {
             await PCM.start(16000);
@@ -340,58 +405,37 @@ export default function Conn() {
             console.log("Error starting PCM player or LiveAudioStream: ", error);
         }
 
-        // const dataListener = LiveAudioStream.on("data", data => {
-        //     // below in data language = i need this lanaguage from sender 
-        //     const language = selectedLanguage.current;
-        //     // console.log(language);
-        //     const binBuffer = Buffer.from(data, "base64");
-        //     socket.emit("audioFromClient", { data: binBuffer, roomId, selectedLanguage: language });
-        // });        
+        const dataListener = LiveAudioStream.on("data", data => {
+            buffer.current = Buffer.concat([buffer.current, Buffer.from(data, "base64")]);
+            if(buffer.current.length >= 128) {
+                    // console.log("hi");
+                   dataChannel.send(buffer.current); 
+                   buffer.current = Buffer.alloc(0);
+            }
+        });        
 
-        // return async () => {
-        //     try {
-        //         if(isMuted)
-        //             LiveAudioStream.stop();
-        //         dataListener.remove();
-        //         await PCM.stop();
-        //     } catch(error) {
-        //         console.warn("Error[LiveAudioStream.stop()]: ", error);
-        //     }
-        // };
-    }, [socket, roomId]);
-
-    useEffect(() => {
-        if (!socket || connectionState !== "connected") return;
-
-        const handleIncomingAudio = (data) => {
+        return async () => {
             try {
-                const base64 = Buffer.from(data).toString("base64");
-                PCM.enqueueBase64(base64);
+                if(isMuted)
+                    LiveAudioStream.stop();
+                dataListener.remove();
+                await PCM.stop();
             } catch(error) {
-                console.error("[bufferEnqueue] error: ", error);
+                console.warn("Error[LiveAudioStream.stop()]: ", error);
             }
         };
-
-        // socket.on("audioFromServer", handleIncomingAudio);
-
-        return () => {
-            socket.off("audioFromServer", handleIncomingAudio);
-        };
-    }, [connectionState, socket]);
-
-    useEffect(() => {
-        // if(isMuted)
-        //     LiveAudioStream.stop();
-        // else if(!isMuted) LiveAudioStream.start();
-    }, [localMicOn]);
+    }, [connectionState, socket, roomId]);
 
     const toggleMic = () => {
-        if (localStream) {
-        // localStream.getAudioTracks().forEach(track => {
-        //     track.enabled = isMuted;
-        // });
-        setIsMuted(!isMuted);
-        }
+        setIsMuted(prevIsMuted => {
+            if(LiveAudioStream) {
+                if(prevIsMuted && connectionState == "connected" && dataChannel && isChannelOpen)
+                    LiveAudioStream.start();
+                else LiveAudioStream.stop();
+            }
+            
+            return !prevIsMuted;
+        });
     };
 
     const toggleVideo = () => {
